@@ -547,7 +547,7 @@
             gain.connect(ctx.destination);
             oscillator.type = 'sine';
             oscillator.frequency.value = 880; // nada tinggi
-            gain.gain.setValueAtTime(0.15, now);
+            gain.gain.setValueAtTime(0.6, now);
             gain.gain.exponentialRampToValueAtTime(0.00001, now + 0.2);
             oscillator.start(now);
             oscillator.stop(now + 0.2);
