@@ -1,17 +1,20 @@
-// ProPOS Service Worker - v1.0.0
+// ProPOS Service Worker - v1.1.0
 const CACHE_NAME = 'propos-v1';
 const RUNTIME_CACHE = 'propos-runtime-v1';
 
-// Asset yang di-cache saat install (App Shell)
+// Asset yang di-cache saat install (App Shell + CDN penting)
 const PRECACHE_ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  'https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js',
+  'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js',
+  'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@500'
 ];
 
-// CDN resources yang di-cache saat pertama kali diakses
+// CDN origins yang akan menggunakan stale-while-revalidate
 const CDN_ORIGINS = [
   'cdn.jsdelivr.net',
   'unpkg.com',
@@ -19,13 +22,13 @@ const CDN_ORIGINS = [
   'fonts.gstatic.com'
 ];
 
-// ===== INSTALL EVENT =====
+// ===== INSTALL =====
 self.addEventListener('install', event => {
   console.log('[SW] Installing ProPOS Service Worker...');
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('[SW] Pre-caching app shell');
+        console.log('[SW] Pre-caching app shell and critical assets');
         return cache.addAll(PRECACHE_ASSETS);
       })
       .then(() => {
@@ -36,7 +39,7 @@ self.addEventListener('install', event => {
   );
 });
 
-// ===== ACTIVATE EVENT =====
+// ===== ACTIVATE =====
 self.addEventListener('activate', event => {
   console.log('[SW] Activating ProPOS Service Worker...');
   event.waitUntil(
@@ -56,33 +59,32 @@ self.addEventListener('activate', event => {
   );
 });
 
-// ===== FETCH EVENT =====
+// ===== FETCH =====
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // Skip non-GET & non-http(s) requests
+  // Skip non-GET & non-http(s)
   if (event.request.method !== 'GET') return;
   if (!event.request.url.startsWith('http')) return;
 
-  // Strategy: Cache First for app shell & icons
+  // Cache First untuk app shell & file lokal
   if (url.origin === self.location.origin || url.pathname.endsWith('.html')) {
     event.respondWith(cacheFirst(event.request));
     return;
   }
 
-  // Strategy: Stale While Revalidate for CDN assets (fonts, scripts)
+  // Stale While Revalidate untuk CDN assets
   if (CDN_ORIGINS.some(origin => url.hostname.includes(origin))) {
     event.respondWith(staleWhileRevalidate(event.request));
     return;
   }
 
-  // Default: Network with fallback
+  // Network with fallback untuk yang lain
   event.respondWith(networkWithFallback(event.request));
 });
 
 // ===== STRATEGIES =====
 
-// Cache First → good for static assets
 async function cacheFirst(request) {
   const cached = await caches.match(request);
   if (cached) return cached;
@@ -98,7 +100,6 @@ async function cacheFirst(request) {
   }
 }
 
-// Stale While Revalidate → good for CDN fonts/scripts
 async function staleWhileRevalidate(request) {
   const cache = await caches.open(RUNTIME_CACHE);
   const cached = await cache.match(request);
@@ -111,7 +112,6 @@ async function staleWhileRevalidate(request) {
   return cached || await fetchPromise || offlineFallback(request);
 }
 
-// Network first with offline fallback
 async function networkWithFallback(request) {
   try {
     const response = await fetch(request);
@@ -122,23 +122,25 @@ async function networkWithFallback(request) {
   }
 }
 
-// Fallback page when fully offline
 function offlineFallback(request) {
   const url = new URL(request.url);
   if (request.headers.get('accept')?.includes('text/html')) {
     return caches.match('./index.html');
   }
+  if (url.pathname.match(/\.(js|css)$/)) {
+    return new Response('', { status: 200, statusText: 'Offline (cached fallback)' });
+  }
   return new Response('', { status: 408, statusText: 'Offline' });
 }
 
-// ===== BACKGROUND SYNC (for future use) =====
+// ===== BACKGROUND SYNC (future) =====
 self.addEventListener('sync', event => {
   if (event.tag === 'sync-sales') {
     console.log('[SW] Background sync: sales data');
   }
 });
 
-// ===== PUSH NOTIFICATION (for future use) =====
+// ===== PUSH NOTIFICATION (future) =====
 self.addEventListener('push', event => {
   if (event.data) {
     const data = event.data.json();

@@ -488,11 +488,9 @@
     // ==================== SUARA BEEP ====================
     function playBeep() {
         try {
-            // Inisialisasi AudioContext jika belum ada (perlu interaksi user pertama kali)
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             }
-            // Resume jika suspended (karena kebijakan browser)
             if (audioCtx.state === 'suspended') {
                 audioCtx.resume().then(() => {
                     generateBeep();
@@ -500,7 +498,6 @@
             } else {
                 generateBeep();
             }
-            // Vibrasi jika didukung
             if (navigator.vibrate) navigator.vibrate(100);
         } catch(e) {
             console.log("Web Audio API tidak didukung:", e);
@@ -515,7 +512,7 @@
         oscillator.connect(gain);
         gain.connect(audioCtx.destination);
         oscillator.type = 'sine';
-        oscillator.frequency.value = 880; // Nada tinggi
+        oscillator.frequency.value = 880;
         gain.gain.setValueAtTime(0.15, now);
         gain.gain.exponentialRampToValueAtTime(0.00001, now + 0.2);
         oscillator.start(now);
@@ -596,7 +593,6 @@
         lastCode = code;
         lastTime = now;
         
-        // Mainkan suara beep
         playBeep();
         
         if (scanMode === 'kasir') {

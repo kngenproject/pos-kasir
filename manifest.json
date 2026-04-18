@@ -31,8 +31,13 @@
       "description": "Buka halaman kasir"
     },
     {
-      "name": "Produk",
-      "url": "./index.html#produk",
+      "name": "Daftar Produk",
+      "url": "./index.html#produk-list",
+      "description": "Lihat semua produk"
+    },
+    {
+      "name": "Inventory",
+      "url": "./index.html#inventory",
       "description": "Kelola produk"
     }
   ]
