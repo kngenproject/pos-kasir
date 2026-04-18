@@ -209,7 +209,6 @@
             margin-bottom: 16px;
         }
 
-        /* Grid produk untuk daftar produk */
         .product-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -272,7 +271,6 @@
             font-size: 14px;
         }
 
-        /* Keranjang */
         #cart-items { max-height: 32vh; overflow-y: auto; margin-bottom: 12px; }
         .cart-item {
             display: flex;
@@ -297,7 +295,6 @@
         .grand-total-row { border-top: 1px dashed rgba(29,78,216,0.2); padding-top: 10px; margin-top: 8px; font-weight: 800; }
         .grand-total-amount { font-size: 18px; font-weight: 800; color: var(--primary); font-family: monospace; }
 
-        /* Inventory list */
         .inventory-item {
             display: flex;
             align-items: center;
@@ -362,14 +359,8 @@
         }
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .cart-empty { text-align: center; padding: 24px; color: var(--text-3); }
-        .badge-cart-count {
-            background: var(--danger);
-            color: white;
-            border-radius: 20px;
-            padding: 2px 6px;
-            font-size: 10px;
-            margin-left: 4px;
-        }
+        .input-with-btn { display: flex; gap: 8px; margin-bottom: 12px; }
+        .input-with-btn input { margin-bottom: 0; flex: 1; }
     </style>
 </head>
 <body>
@@ -385,10 +376,9 @@
     </header>
     <div id="install-banner" class="no-print"><p>📲 Install ProPOS di layar utama!</p><button class="btn-install" onclick="installPWA()">Install</button><button class="btn-dismiss" onclick="dismissInstall()">×</button></div>
 
-    <!-- TAB KASIR (tanpa dropdown produk) -->
+    <!-- TAB KASIR -->
     <div id="tab-kasir" class="tab-content active">
         <button class="btn btn-scan" onclick="startKasirScanner()">📷 Scan Barcode</button>
-        
         <div class="card">
             <div class="card-title">🛒 Keranjang</div>
             <div id="cart-items"><div class="cart-empty">🛒 Kosong</div></div>
@@ -404,14 +394,14 @@
         </div>
     </div>
 
-    <!-- TAB DAFTAR PRODUK (baru, untuk memilih produk ke keranjang) -->
+    <!-- TAB DAFTAR PRODUK -->
     <div id="tab-produk-list" class="tab-content">
         <div class="card-title">📋 Semua Produk</div>
         <input type="text" id="search-produk" class="search-bar" placeholder="🔍 Cari nama atau barcode..." oninput="filterProdukList()">
         <div id="produk-list-container" class="product-grid"></div>
     </div>
 
-    <!-- TAB INVENTORY (manajemen produk) -->
+    <!-- TAB INVENTORY -->
     <div id="tab-inventory" class="tab-content">
         <div class="card-title">📦 Inventory</div>
         <div class="card">
@@ -490,7 +480,47 @@
     let scanMode = 'kasir';
     let produkListFilter = '';
     
+    // Audio context untuk suara beep
+    let audioCtx = null;
+    
     const formatRp = (n) => "Rp " + Number(n).toLocaleString('id-ID');
+
+    // ==================== SUARA BEEP ====================
+    function playBeep() {
+        try {
+            // Inisialisasi AudioContext jika belum ada (perlu interaksi user pertama kali)
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            // Resume jika suspended (karena kebijakan browser)
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume().then(() => {
+                    generateBeep();
+                }).catch(e => console.log("Gagal resume audio:", e));
+            } else {
+                generateBeep();
+            }
+            // Vibrasi jika didukung
+            if (navigator.vibrate) navigator.vibrate(100);
+        } catch(e) {
+            console.log("Web Audio API tidak didukung:", e);
+        }
+    }
+    
+    function generateBeep() {
+        if (!audioCtx) return;
+        const now = audioCtx.currentTime;
+        const oscillator = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        oscillator.connect(gain);
+        gain.connect(audioCtx.destination);
+        oscillator.type = 'sine';
+        oscillator.frequency.value = 880; // Nada tinggi
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.00001, now + 0.2);
+        oscillator.start(now);
+        oscillator.stop(now + 0.2);
+    }
 
     // ==================== PWA ====================
     if ('serviceWorker' in navigator) {
@@ -565,22 +595,10 @@
         if (code === lastCode && (now - lastTime) < 2000) return;
         lastCode = code;
         lastTime = now;
-        // beep & vibrate
-        try {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.value = 880;
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            gain.gain.setValueAtTime(0.1, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.2);
-            osc.start();
-            osc.stop(ctx.currentTime + 0.2);
-            if (navigator.vibrate) navigator.vibrate(100);
-        } catch(e) {}
-
+        
+        // Mainkan suara beep
+        playBeep();
+        
         if (scanMode === 'kasir') {
             addToCart(code);
         } else if (scanMode === 'produk') {
@@ -623,7 +641,7 @@
         startScanner();
     }
 
-    // ==================== PRODUK (CRUD) ====================
+    // ==================== PRODUK CRUD ====================
     function saveProduct() {
         let barcode = document.getElementById('p-barcode').value.trim();
         const nama = document.getElementById('p-nama').value.trim();
@@ -665,7 +683,6 @@
             document.getElementById('p-nama').value = product.nama;
             document.getElementById('p-harga').value = product.harga;
             document.getElementById('p-stok').value = product.stok;
-            // scroll ke form
             document.querySelector('#tab-inventory .card').scrollIntoView({ behavior: 'smooth' });
         }
     }
