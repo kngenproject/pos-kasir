@@ -419,11 +419,11 @@
         <div class="section-title">📦 Inventory</div>
         <div class="card">
             <div class="card-title">Tambah / Edit Produk</div>
-            <label>Barcode</label>
+            <label>Barcode (opsional, kosongkan untuk auto-generate)</label>
             <div class="input-with-btn">
-                <input type="text" id="p-barcode" placeholder="Ketik atau scan barcode">
-                <button class="btn btn-outline btn-sm" onclick="startProductScanner()">📷 Scan</button>
-            </div>
+    <input type="text" id="p-barcode" placeholder="Biarkan kosong untuk auto-generate">
+    <button class="btn btn-outline btn-sm" onclick="startProductScanner()">📷 Scan</button>
+</div>
             <label>Nama Produk</label><input type="text" id="p-nama">
             <div class="grid-2">
                 <div><label>Harga</label><input type="number" id="p-harga"></div>
@@ -617,28 +617,37 @@
 
     // ==================== PRODUK ====================
     function saveProduct() {
-        const barcode = document.getElementById('p-barcode').value.trim();
-        const nama = document.getElementById('p-nama').value.trim();
-        const harga = parseInt(document.getElementById('p-harga').value);
-        const stok = parseInt(document.getElementById('p-stok').value) || 0;
-        if (!barcode || !nama || isNaN(harga)) { alert("Lengkapi data!"); return; }
-        const idx = products.findIndex(p => p.barcode === barcode);
-        if (idx > -1) {
-            products[idx].stok += stok;
-            products[idx].nama = nama;
-            products[idx].harga = harga;
-        } else {
-            products.push({ barcode, nama, harga, stok });
-        }
-        localStorage.setItem('p_db_pro', JSON.stringify(products));
-        renderProduk();
-        renderProdukKasir();
-        document.getElementById('p-barcode').value = '';
-        document.getElementById('p-nama').value = '';
-        document.getElementById('p-harga').value = '';
-        document.getElementById('p-stok').value = '';
+    let barcode = document.getElementById('p-barcode').value.trim();
+    const nama = document.getElementById('p-nama').value.trim();
+    const harga = parseInt(document.getElementById('p-harga').value);
+    const stok = parseInt(document.getElementById('p-stok').value) || 0;
+    
+    if (!nama || isNaN(harga)) { alert("Nama dan harga harus diisi!"); return; }
+    
+    // Jika barcode kosong, generate otomatis
+    if (barcode === "") {
+        barcode = "PRD" + Date.now() + Math.floor(Math.random() * 1000);
     }
-
+    
+    const idx = products.findIndex(p => p.barcode === barcode);
+    if (idx > -1) {
+        products[idx].stok += stok;
+        products[idx].nama = nama;
+        products[idx].harga = harga;
+        alert(`Produk ${nama} berhasil diupdate!`);
+    } else {
+        products.push({ barcode, nama, harga, stok });
+        alert(`✅ Produk ${nama} berhasil disimpan!\nBarcode: ${barcode}`);
+    }
+    
+    localStorage.setItem('p_db_pro', JSON.stringify(products));
+    renderProduk();
+    renderProdukKasir();
+    
+    document.getElementById('p-barcode').value = "";
+    document.getElementById('p-nama').value = "";
+    document.getElementById('p-harga').value = "";
+    document.getElementById('p-stok').value = "";}    
     function renderProduk() {
         const container = document.getElementById('list-produk');
         document.getElementById('prod-count').innerText = products.length;
@@ -707,19 +716,18 @@
 
     // ==================== CART ====================
     function addToCart(bc) {
-        const p = products.find(i => i.barcode === bc);
-        if (!p) { alert("Produk tidak ditemukan: "+bc); return; }
-        if (p.stok <= 0) { alert("Stok habis!"); return; }
-        const existing = cart.find(c => c.barcode === bc);
-        if (existing) {
-            if (existing.qty < p.stok) existing.qty++;
-            else alert("Stok tidak mencukupi");
-        } else {
-            cart.push({ ...p, qty: 1 });
-        }
-        updateCartUI();
+    const p = products.find(i => i.barcode === bc);
+    if (!p) { alert("Produk tidak ditemukan: " + bc); return; }
+    if (p.stok <= 0) { alert("Stok habis!"); return; }
+    const existing = cart.find(c => c.barcode === bc);
+    if (existing) {
+        if (existing.qty < p.stok) existing.qty++;
+        else alert("Stok tidak mencukupi");
+    } else {
+        cart.push({ ...p, qty: 1 });
     }
-
+    updateCartUI();
+}
     function changeQty(idx, delta) {
         const maxStok = products.find(p => p.barcode === cart[idx].barcode)?.stok || 0;
         cart[idx].qty += delta;
