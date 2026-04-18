@@ -209,54 +209,70 @@
             margin-bottom: 16px;
         }
 
-        /* Dropdown produk di kasir */
-        .dropdown-container {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 16px;
+        /* Grid produk untuk daftar produk */
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-top: 8px;
         }
-        .product-dropdown {
-            flex: 1;
+        .product-card {
+            background: var(--surface);
+            border-radius: var(--radius);
             padding: 12px;
-            border-radius: 10px;
-            border: 1.5px solid var(--border);
-            background: var(--surface-2);
-            font-family: 'DM Sans', sans-serif;
+            border: 1px solid var(--border);
+            transition: 0.1s;
+        }
+        .product-card h4 {
             font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .product-price {
+            font-weight: 800;
+            color: var(--primary);
+            font-size: 14px;
+        }
+        .product-stock {
+            font-size: 11px;
+            color: var(--text-3);
+            margin: 6px 0;
+        }
+        .product-stock.low {
+            color: var(--danger);
+        }
+        .btn-add-cart {
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 8px;
+            width: 100%;
+            font-weight: 600;
+            font-size: 12px;
+            margin-top: 8px;
             cursor: pointer;
         }
-        .product-dropdown:focus {
-            outline: none;
-            border-color: var(--primary-light);
+        .btn-add-cart:active { transform: scale(0.96); }
+        .btn-add-cart.disabled {
+            background: #cbd5e1;
+            cursor: not-allowed;
         }
 
-        /* Modal scanner */
-        .scanner-modal {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.95);
-            z-index: 1000;
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        .scanner-modal.active { display: flex; }
-        .scanner-container {
+        .search-bar {
             width: 100%;
-            max-width: 500px;
-            background: #000;
-            border-radius: 24px;
-            overflow: hidden;
+            padding: 12px;
+            border-radius: 40px;
+            border: 1.5px solid var(--border);
+            background: var(--surface-2);
+            margin-bottom: 12px;
+            font-size: 14px;
         }
-        #scanner-video { width: 100%; aspect-ratio: 4/3; background: #000; }
-        .scanner-controls { display: flex; gap: 16px; padding: 16px; background: #111; }
-        .scanner-controls .btn { flex: 1; background: #333; color: white; }
 
-        .input-with-btn { display: flex; gap: 8px; margin-bottom: 12px; }
-        .input-with-btn input { margin-bottom: 0; flex: 1; }
-
+        /* Keranjang */
         #cart-items { max-height: 32vh; overflow-y: auto; margin-bottom: 12px; }
         .cart-item {
             display: flex;
@@ -281,7 +297,8 @@
         .grand-total-row { border-top: 1px dashed rgba(29,78,216,0.2); padding-top: 10px; margin-top: 8px; font-weight: 800; }
         .grand-total-amount { font-size: 18px; font-weight: 800; color: var(--primary); font-family: monospace; }
 
-        .product-item {
+        /* Inventory list */
+        .inventory-item {
             display: flex;
             align-items: center;
             gap: 12px;
@@ -291,10 +308,11 @@
             margin-bottom: 8px;
             border: 1px solid var(--border);
         }
-        .product-info { flex: 1; }
-        .product-price { font-weight: 700; color: var(--primary); }
-        .stock-badge { background: var(--bg); border-radius: 6px; padding: 2px 8px; font-size: 11px; }
+        .inventory-info { flex: 1; }
+        .inventory-price { font-weight: 700; color: var(--primary); }
+        .inventory-stock { background: var(--bg); border-radius: 6px; padding: 2px 8px; font-size: 11px; }
         .delete-btn { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--danger); }
+        .edit-btn { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--primary); margin-right: 8px; }
 
         .laporan-card {
             background: var(--surface);
@@ -344,6 +362,14 @@
         }
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .cart-empty { text-align: center; padding: 24px; color: var(--text-3); }
+        .badge-cart-count {
+            background: var(--danger);
+            color: white;
+            border-radius: 20px;
+            padding: 2px 6px;
+            font-size: 10px;
+            margin-left: 4px;
+        }
     </style>
 </head>
 <body>
@@ -359,20 +385,10 @@
     </header>
     <div id="install-banner" class="no-print"><p>📲 Install ProPOS di layar utama!</p><button class="btn-install" onclick="installPWA()">Install</button><button class="btn-dismiss" onclick="dismissInstall()">×</button></div>
 
-    <!-- TAB KASIR -->
+    <!-- TAB KASIR (tanpa dropdown produk) -->
     <div id="tab-kasir" class="tab-content active">
         <button class="btn btn-scan" onclick="startKasirScanner()">📷 Scan Barcode</button>
         
-        <div class="card">
-            <div class="card-title">📋 Pilih Produk</div>
-            <div class="dropdown-container">
-                <select id="select-produk-kasir" class="product-dropdown">
-                    <option value="">-- Pilih produk --</option>
-                </select>
-                <button class="btn btn-outline btn-sm" onclick="tambahProdukDariDropdown()">➕ Tambah</button>
-            </div>
-        </div>
-
         <div class="card">
             <div class="card-title">🛒 Keranjang</div>
             <div id="cart-items"><div class="cart-empty">🛒 Kosong</div></div>
@@ -388,9 +404,16 @@
         </div>
     </div>
 
-    <!-- TAB PRODUK -->
-    <div id="tab-produk" class="tab-content">
-        <div class="section-title">📦 Inventory</div>
+    <!-- TAB DAFTAR PRODUK (baru, untuk memilih produk ke keranjang) -->
+    <div id="tab-produk-list" class="tab-content">
+        <div class="card-title">📋 Semua Produk</div>
+        <input type="text" id="search-produk" class="search-bar" placeholder="🔍 Cari nama atau barcode..." oninput="filterProdukList()">
+        <div id="produk-list-container" class="product-grid"></div>
+    </div>
+
+    <!-- TAB INVENTORY (manajemen produk) -->
+    <div id="tab-inventory" class="tab-content">
+        <div class="card-title">📦 Inventory</div>
         <div class="card">
             <div class="card-title">Tambah / Edit Produk</div>
             <label>Barcode (opsional, kosongkan untuk auto-generate)</label>
@@ -406,12 +429,12 @@
             <button class="btn btn-primary" onclick="saveProduct()">💾 Simpan</button>
         </div>
         <div class="card-title">Daftar Barang (<span id="prod-count">0</span>)</div>
-        <div id="list-produk"></div>
+        <div id="list-inventory"></div>
     </div>
 
     <!-- TAB LAPORAN -->
     <div id="tab-laporan" class="tab-content">
-        <div class="section-title">📊 Laporan</div>
+        <div class="card-title">📊 Laporan</div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px">
             <div class="card" style="padding:14px"><div>Total Transaksi</div><div id="stat-trx" style="font-size:24px; font-weight:800">0</div></div>
             <div class="card" style="padding:14px"><div>Total Omset</div><div id="stat-omset" style="font-size:24px; font-weight:800">Rp 0</div></div>
@@ -422,9 +445,10 @@
 </div>
 
 <nav class="nav-bar no-print">
-    <div class="nav-item active" onclick="showTab('tab-kasir', this)"><div class="nav-icon">🛒</div><span class="nav-label">Kasir</span></div>
-    <div class="nav-item" onclick="showTab('tab-produk', this)"><div class="nav-icon">📦</div><span class="nav-label">Produk</span></div>
-    <div class="nav-item" onclick="showTab('tab-laporan', this)"><div class="nav-icon">📊</div><span class="nav-label">Laporan</span></div>
+    <div class="nav-item active" data-tab="tab-kasir"><div class="nav-icon">🛒</div><span class="nav-label">Kasir</span></div>
+    <div class="nav-item" data-tab="tab-produk-list"><div class="nav-icon">📋</div><span class="nav-label">Daftar Produk</span></div>
+    <div class="nav-item" data-tab="tab-inventory"><div class="nav-icon">📦</div><span class="nav-label">Inventory</span></div>
+    <div class="nav-item" data-tab="tab-laporan"><div class="nav-icon">📊</div><span class="nav-label">Laporan</span></div>
 </nav>
 
 <!-- MODAL SCANNER -->
@@ -464,6 +488,8 @@
     let isScanning = false;
     let lastCode = "", lastTime = 0;
     let scanMode = 'kasir';
+    let produkListFilter = '';
+    
     const formatRp = (n) => "Rp " + Number(n).toLocaleString('id-ID');
 
     // ==================== PWA ====================
@@ -498,16 +524,23 @@
     }
 
     // ==================== NAVIGASI ====================
-    function showTab(id, navEl) {
+    function showTab(tabId, navEl) {
         document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-        document.getElementById(id).classList.add('active');
+        document.getElementById(tabId).classList.add('active');
         if (navEl) navEl.classList.add('active');
         closeScanner();
-        if (id === 'tab-produk') renderProduk();
-        if (id === 'tab-laporan') renderLaporan();
-        if (id === 'tab-kasir') renderProdukKasir();
+        if (tabId === 'tab-inventory') renderInventoryList();
+        if (tabId === 'tab-laporan') renderLaporan();
+        if (tabId === 'tab-produk-list') renderProdukList();
     }
+
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const tabId = item.getAttribute('data-tab');
+            showTab(tabId, item);
+        });
+    });
 
     // ==================== SCANNER ====================
     async function startScanner() {
@@ -590,35 +623,7 @@
         startScanner();
     }
 
-    // ==================== DROPDOWN PRODUK DI KASIR ====================
-    function renderProdukKasir() {
-        const select = document.getElementById('select-produk-kasir');
-        if (!select) return;
-        
-        if (products.length === 0) {
-            select.innerHTML = '<option value="">-- Belum ada produk --</option>';
-            return;
-        }
-        
-        let options = '<option value="">-- Pilih produk --</option>';
-        for (const p of products) {
-            options += `<option value="${escapeHtml(p.barcode)}">${escapeHtml(p.nama)} - ${formatRp(p.harga)} (Stok: ${p.stok})</option>`;
-        }
-        select.innerHTML = options;
-    }
-
-    function tambahProdukDariDropdown() {
-        const select = document.getElementById('select-produk-kasir');
-        const barcode = select.value;
-        if (!barcode) {
-            alert("Silakan pilih produk terlebih dahulu.");
-            return;
-        }
-        addToCart(barcode);
-        select.value = "";
-    }
-
-    // ==================== PRODUK ====================
+    // ==================== PRODUK (CRUD) ====================
     function saveProduct() {
         let barcode = document.getElementById('p-barcode').value.trim();
         const nama = document.getElementById('p-nama').value.trim();
@@ -630,56 +635,99 @@
             return; 
         }
         
-        // Jika barcode kosong, generate otomatis
         if (barcode === "") {
             barcode = "PRD" + Date.now() + Math.floor(Math.random() * 1000);
         }
         
         const idx = products.findIndex(p => p.barcode === barcode);
         if (idx > -1) {
-            // Update produk yang sudah ada
-            products[idx].stok += stok;
-            products[idx].nama = nama;
-            products[idx].harga = harga;
-            alert(`Produk ${nama} berhasil diupdate! Stok bertambah ${stok}`);
+            products[idx] = { barcode, nama, harga, stok };
+            alert(`Produk ${nama} berhasil diupdate!`);
         } else {
-            // Tambah produk baru
             products.push({ barcode, nama, harga, stok });
             alert(`✅ Produk ${nama} berhasil disimpan!\nBarcode: ${barcode}`);
         }
         
         localStorage.setItem('p_db_pro', JSON.stringify(products));
-        renderProduk();
-        renderProdukKasir();
+        renderInventoryList();
+        renderProdukList();
         
-        // Reset form
         document.getElementById('p-barcode').value = "";
         document.getElementById('p-nama').value = "";
         document.getElementById('p-harga').value = "";
         document.getElementById('p-stok').value = "";
     }
 
-    function renderProduk() {
-        const container = document.getElementById('list-produk');
+    function editProduct(barcode) {
+        const product = products.find(p => p.barcode === barcode);
+        if (product) {
+            document.getElementById('p-barcode').value = product.barcode;
+            document.getElementById('p-nama').value = product.nama;
+            document.getElementById('p-harga').value = product.harga;
+            document.getElementById('p-stok').value = product.stok;
+            // scroll ke form
+            document.querySelector('#tab-inventory .card').scrollIntoView({ behavior: 'smooth' });
+        }
+    }
+
+    function hapusProduk(barcode) {
+        if(confirm(`Hapus produk ini?`)) { 
+            products = products.filter(p => p.barcode !== barcode);
+            localStorage.setItem('p_db_pro', JSON.stringify(products)); 
+            renderInventoryList(); 
+            renderProdukList();
+        } 
+    }
+
+    function renderInventoryList() {
+        const container = document.getElementById('list-inventory');
         document.getElementById('prod-count').innerText = products.length;
         if (!products.length) { container.innerHTML = '<div class="cart-empty">📦 Belum ada produk</div>'; return; }
-        container.innerHTML = products.map((p,i) => `
-            <div class="product-item">
+        container.innerHTML = products.map(p => `
+            <div class="inventory-item">
                 <div>🏷</div>
-                <div class="product-info"><b>${escapeHtml(p.nama)}</b><br><small>${escapeHtml(p.barcode)}</small></div>
-                <div class="product-meta"><div class="product-price">${formatRp(p.harga)}</div><span class="stock-badge">Stok: ${p.stok}</span></div>
-                <button class="delete-btn" onclick="hapusProduk(${i})">×</button>
+                <div class="inventory-info">
+                    <b>${escapeHtml(p.nama)}</b><br>
+                    <small>${escapeHtml(p.barcode)}</small>
+                    <div class="inventory-price">${formatRp(p.harga)}</div>
+                </div>
+                <div><span class="inventory-stock">Stok: ${p.stok}</span></div>
+                <div>
+                    <button class="edit-btn" onclick="editProduct('${escapeHtml(p.barcode)}')">✏️</button>
+                    <button class="delete-btn" onclick="hapusProduk('${escapeHtml(p.barcode)}')">×</button>
+                </div>
             </div>
         `).join('');
     }
 
-    function hapusProduk(i) { 
-        if(confirm(`Hapus ${products[i].nama}?`)) { 
-            products.splice(i,1); 
-            localStorage.setItem('p_db_pro',JSON.stringify(products)); 
-            renderProduk(); 
-            renderProdukKasir();
-        } 
+    function renderProdukList() {
+        const container = document.getElementById('produk-list-container');
+        if (!container) return;
+        
+        let filtered = products;
+        if (produkListFilter) {
+            const f = produkListFilter.toLowerCase();
+            filtered = products.filter(p => p.nama.toLowerCase().includes(f) || p.barcode.toLowerCase().includes(f));
+        }
+        
+        if (filtered.length === 0) {
+            container.innerHTML = '<div class="cart-empty">📦 Tidak ada produk ditemukan</div>';
+            return;
+        }
+        
+        container.innerHTML = filtered.map(p => `
+            <div class="product-card">
+                <h4>${escapeHtml(p.nama)}</h4>
+                <div class="product-price">${formatRp(p.harga)}</div>
+                <div class="product-stock ${p.stok <= 5 ? 'low' : ''}">Stok: ${p.stok}</div>
+                <button class="btn-add-cart" onclick="addToCart('${escapeHtml(p.barcode)}')" ${p.stok <= 0 ? 'disabled' : ''}>➕ Tambah</button>
+            </div>
+        `).join('');
+    }
+
+    function filterProdukList() {
+        produkListFilter = document.getElementById('search-produk').value;
+        renderProdukList();
     }
 
     function escapeHtml(str) { 
@@ -721,6 +769,8 @@
             container.innerHTML = '<div class="cart-empty">🛒 Kosong</div>'; 
             document.getElementById('total-cart').innerText = "Rp 0"; 
             document.getElementById('subtotal').innerText = "Rp 0"; 
+            document.getElementById('input-bayar').value = '';
+            hitungKembalian();
             return; 
         }
         let total = 0;
@@ -762,9 +812,9 @@
         localStorage.setItem('s_db_pro', JSON.stringify(sales));
         showStruk(trx);
         resetKasir();
-        renderProduk();
+        renderInventoryList();
+        renderProdukList();
         renderLaporan();
-        renderProdukKasir();
     }
 
     function showStruk(data) {
@@ -792,9 +842,10 @@
     window.onload = () => { 
         startClock(); 
         updateOnlineStatus(); 
-        renderProduk(); 
+        renderInventoryList(); 
+        renderProdukList();
         renderLaporan(); 
-        renderProdukKasir();
+        updateCartUI();
     };
 </script>
 </body>
