@@ -9,7 +9,7 @@
     <meta name="apple-mobile-web-app-title" content="ProPOS">
     <meta name="application-name" content="ProPOS">
     <meta name="theme-color" content="#1d4ed8">
-    <meta name="description" content="Aplikasi kasir pintar untuk bisnis Anda. Kelola stok, cetak struk.">
+    <meta name="description" content="Aplikasi kasir pintar untuk bisnis Anda. Scan barcode, kelola stok, cetak struk.">
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png">
@@ -17,6 +17,7 @@
     <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
     <title>ProPOS - Smart Business Solution</title>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
     <style>
         * {
@@ -160,7 +161,6 @@
         .tab-content.active { display: block; animation: fadeUp 0.3s ease; }
         .tab-content::-webkit-scrollbar { display: none; }
 
-        /* Perbaikan padding bottom untuk kasir */
         .tab-content.active {
             padding-bottom: calc(var(--nav-h) + 80px + var(--safe-bottom));
         }
@@ -270,34 +270,64 @@
         .btn-danger { background: #fff1f1; color: var(--danger); font-size: 13px; padding: 11px; }
         .btn-sm { padding: 8px 14px; font-size: 13px; width: auto; }
 
-        /* Gaya untuk logo scanner (tanpa kamera) */
-        .scanner-logo-container {
-            background: linear-gradient(145deg, var(--surface), var(--surface-2));
-            border: 2px dashed var(--primary-light);
-            border-radius: var(--radius-lg);
-            padding: 24px 16px;
-            margin-bottom: 20px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.2s ease;
+        /* Tombol scan barcode besar */
+        .btn-scan {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: white;
+            padding: 16px;
+            font-size: 18px;
+            margin-bottom: 16px;
+            border-radius: 60px;
+            box-shadow: var(--shadow-md);
         }
-        .scanner-logo-container:active {
-            transform: scale(0.97);
-            background: var(--bg);
+        .btn-scan:active {
+            transform: scale(0.96);
         }
-        .scanner-logo {
-            font-size: 64px;
-            margin-bottom: 8px;
+
+        /* Modal scanner */
+        .scanner-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
         }
-        .scanner-text {
-            font-weight: 700;
-            color: var(--primary);
-            font-size: 15px;
+        .scanner-modal.active {
+            display: flex;
         }
-        .scanner-hint {
-            font-size: 11px;
-            color: var(--text-3);
-            margin-top: 4px;
+        .scanner-container {
+            width: 100%;
+            max-width: 500px;
+            background: #000;
+            border-radius: 24px;
+            overflow: hidden;
+            position: relative;
+        }
+        #scanner-video {
+            width: 100%;
+            aspect-ratio: 4 / 3;
+            background: #000;
+        }
+        .scanner-controls {
+            display: flex;
+            gap: 16px;
+            padding: 16px;
+            background: #111;
+        }
+        .scanner-controls .btn {
+            flex: 1;
+            background: #333;
+            color: white;
+        }
+        .scanner-controls .btn-close {
+            background: var(--danger);
         }
 
         /* Keranjang */
@@ -440,16 +470,12 @@
     </header>
     <div id="install-banner" class="no-print"><p>📲 Install ProPOS di layar utama!</p><button class="btn-install" onclick="installPWA()">Install</button><button class="btn-dismiss" onclick="dismissInstall()">×</button></div>
 
-    <!-- TAB KASIR (tanpa kamera, hanya logo + notifikasi) -->
+    <!-- TAB KASIR: hanya tombol scan barcode -->
     <div id="tab-kasir" class="tab-content active">
-        <div class="scanner-logo-container" onclick="showScanNotification()">
-            <div class="scanner-logo">📷🔍</div>
-            <div class="scanner-text">Klik untuk scan barcode</div>
-            <div class="scanner-hint">Atau ketik manual di bawah</div>
-        </div>
+        <button class="btn btn-scan" onclick="startScanner()">📷 Scan Barcode</button>
 
         <div class="input-with-btn">
-            <input type="text" id="manual-barcode" placeholder="Ketik atau tempel barcode..." autocomplete="off">
+            <input type="text" id="manual-barcode" placeholder="Atau ketik barcode manual..." autocomplete="off">
             <button class="btn btn-outline btn-sm" onclick="addManualBarcode()">➕ Tambah</button>
         </div>
 
@@ -501,6 +527,16 @@
     <div class="nav-item" id="nav-laporan" onclick="showTab('tab-laporan', this)"><div class="nav-icon">📊</div><span class="nav-label">Laporan</span></div>
 </nav>
 
+<!-- MODAL SCANNER -->
+<div id="scanner-modal" class="scanner-modal">
+    <div class="scanner-container">
+        <div id="scanner-video"></div>
+        <div class="scanner-controls">
+            <button class="btn" onclick="closeScanner()">Tutup</button>
+        </div>
+    </div>
+</div>
+
 <div id="receipt-modal">
     <div class="receipt-paper">
         <div class="receipt-header"><div class="receipt-logo" style="width:48px;height:48px;background:linear-gradient(135deg,var(--primary),var(--primary-light));border-radius:14px;display:inline-flex;align-items:center;justify-content:center;color:white;margin-bottom:10px;">POS</div><div class="receipt-store">TOKO SUKSES JAYA</div><div class="receipt-date" id="r-tgl"></div></div>
@@ -521,6 +557,9 @@
     let cart = [];
     let deferredInstallPrompt = null;
     let swRegistration = null;
+    let html5QrCode = null;
+    let isScanning = false;
+    let lastCode = "", lastTime = 0;
     const formatRp = (n) => "Rp " + Number(n).toLocaleString('id-ID');
 
     // ==================== PWA ====================
@@ -543,16 +582,71 @@
         document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
         document.getElementById(id).classList.add('active'); if (navEl) navEl.classList.add('active');
+        // Tutup scanner jika terbuka
+        closeScanner();
         if (id === 'tab-produk') renderProduk();
         if (id === 'tab-laporan') renderLaporan();
     }
 
-    // ==================== FUNGSI SCANNER (HANYA NOTIFIKASI) ====================
-    function showScanNotification() {
-        alert("📱 Mode scan tidak aktif.\nSilakan masukkan barcode secara manual di kolom yang tersedia.");
-        document.getElementById('manual-barcode').focus();
+    // ==================== SCANNER (TOMbol) ====================
+    async function startScanner() {
+        if (isScanning) return;
+        const modal = document.getElementById('scanner-modal');
+        modal.classList.add('active');
+        const videoDiv = document.getElementById('scanner-video');
+        videoDiv.innerHTML = ''; // bersihkan
+        try {
+            html5QrCode = new Html5Qrcode("scanner-video");
+            await html5QrCode.start({ facingMode: "environment" }, { fps: 20, qrbox: { width: 250, height: 200 } }, onScanSuccess);
+            isScanning = true;
+        } catch (err) {
+            console.error(err);
+            alert("Gagal mengakses kamera. Pastikan izin kamera diberikan.");
+            closeScanner();
+        }
     }
 
+    function onScanSuccess(code) {
+        const now = Date.now();
+        if (code === lastCode && (now - lastTime) < 2000) return;
+        lastCode = code;
+        lastTime = now;
+        // beep
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = 880;
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            gain.gain.setValueAtTime(0.1, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.2);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.2);
+            if (navigator.vibrate) navigator.vibrate(100);
+        } catch(e) {}
+        // Tambah ke keranjang
+        addToCart(code);
+        // Tutup scanner setelah scan berhasil
+        closeScanner();
+    }
+
+    async function closeScanner() {
+        if (html5QrCode && isScanning) {
+            try {
+                await html5QrCode.stop();
+            } catch(e) {}
+            html5QrCode = null;
+        }
+        isScanning = false;
+        const modal = document.getElementById('scanner-modal');
+        modal.classList.remove('active');
+        const videoDiv = document.getElementById('scanner-video');
+        videoDiv.innerHTML = '';
+    }
+
+    // ==================== MANUAL BARCODE ====================
     function addManualBarcode() {
         const barcode = document.getElementById('manual-barcode').value.trim();
         if (barcode === "") {
@@ -563,8 +657,6 @@
         document.getElementById('manual-barcode').value = "";
         document.getElementById('manual-barcode').focus();
     }
-
-    // Event enter pada input manual
     document.getElementById('manual-barcode')?.addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
             e.preventDefault();
