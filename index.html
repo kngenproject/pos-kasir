@@ -322,6 +322,58 @@
         }
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .cart-empty { text-align: center; padding: 24px; color: var(--text-3); }
+        /* Daftar produk di kasir */
+        .product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+    max-height: 35vh;
+    overflow-y: auto;
+    padding: 4px;
+}
+        .product-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px;
+    cursor: pointer;
+    transition: all 0.1s;
+    text-align: center;
+}
+        .product-card:active {
+    transform: scale(0.97);
+    background: var(--bg);
+}
+        .product-card-name {
+    font-weight: 700;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+        .product-card-price {
+    font-size: 12px;
+    color: var(--primary);
+    font-weight: 600;
+}
+        .product-card-stock {
+    font-size: 10px;
+    color: var(--text-3);
+}
+        .search-input {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1.5px solid var(--border);
+    background: var(--surface-2);
+    margin-bottom: 10px;
+    font-size: 14px;
+}
+        .search-input:focus {
+    outline: none;
+    border-color: var(--primary-light);
+}
     </style>
 </head>
 <body>
@@ -340,10 +392,13 @@
     <!-- TAB KASIR -->
     <div id="tab-kasir" class="tab-content active">
         <button class="btn btn-scan" onclick="startKasirScanner()">📷 Scan Barcode</button>
-        <div class="input-with-btn">
-            <input type="text" id="manual-barcode" placeholder="Atau ketik barcode manual...">
-            <button class="btn btn-outline btn-sm" onclick="addManualBarcode()">➕ Tambah</button>
-        </div>
+        <div class="product-list-header">
+    <div class="card-title">📋 Pilih Produk</div>
+    <input type="text" id="search-produk-kasir" placeholder="Cari produk..." class="search-input" oninput="filterProdukKasir()">
+</div>
+        <div id="daftar-produk-kasir" class="product-grid">
+    <!-- daftar produk akan diisi JavaScript -->
+</div>
         <div class="card">
             <div class="card-title">🛒 Keranjang</div>
             <div id="cart-items"><div class="cart-empty">🛒 Kosong</div></div>
@@ -560,16 +615,6 @@
         startScanner();
     }
 
-    // ==================== MANUAL BARCODE ====================
-    function addManualBarcode() {
-        const bc = document.getElementById('manual-barcode').value.trim();
-        if (!bc) { alert("Masukkan barcode"); return; }
-        addToCart(bc);
-        document.getElementById('manual-barcode').value = '';
-        document.getElementById('manual-barcode').focus();
-    }
-    document.getElementById('manual-barcode')?.addEventListener('keypress', (e) => { if(e.key === 'Enter') addManualBarcode(); });
-
     // ==================== PRODUK ====================
     function saveProduct() {
         const barcode = document.getElementById('p-barcode').value.trim();
@@ -587,6 +632,7 @@
         }
         localStorage.setItem('p_db_pro', JSON.stringify(products));
         renderProduk();
+        renderProdukKasir();
         document.getElementById('p-barcode').value = '';
         document.getElementById('p-nama').value = '';
         document.getElementById('p-harga').value = '';
@@ -606,9 +652,57 @@
             </div>
         `).join('');
     }
+    // ==================== DAFTAR PRODUK DI KASIR ====================
+    let produkKasirFilter = '';
 
-    function hapusProduk(i) { if(confirm(`Hapus ${products[i].nama}?`)) { products.splice(i,1); localStorage.setItem('p_db_pro',JSON.stringify(products)); renderProduk(); } }
+    function renderProdukKasir() {
+    const container = document.getElementById('daftar-produk-kasir');
+    if (!container) return;
+    
+    let filtered = products;
+    if (produkKasirFilter) {
+        const lowerFilter = produkKasirFilter.toLowerCase();
+        filtered = products.filter(p => 
+            p.nama.toLowerCase().includes(lowerFilter) || 
+            p.barcode.toLowerCase().includes(lowerFilter)
+        );
+    }
+    
+    if (filtered.length === 0) {
+        container.innerHTML = '<div class="cart-empty" style="grid-column:1/-1">📦 Tidak ada produk</div>';
+        return;
+    }
+    
+    container.innerHTML = filtered.map(p => `
+        <div class="product-card" onclick="tambahProdukKeKeranjang('${escapeHtml(p.barcode)}')">
+            <div class="product-card-name">${escapeHtml(p.nama)}</div>
+            <div class="product-card-price">${formatRp(p.harga)}</div>
+            <div class="product-card-stock">Stok: ${p.stok}</div>
+        </div>
+    `).join('');
+}
 
+    function filterProdukKasir() {
+    const input = document.getElementById('search-produk-kasir');
+    produkKasirFilter = input ? input.value : '';
+    renderProdukKasir();
+}
+
+    function tambahProdukKeKeranjang(barcode) {
+    addToCart(barcode);
+    // Optional: scroll keranjang ke bawah
+    const cartEl = document.getElementById('cart-items');
+    if (cartEl) cartEl.scrollTop = cartEl.scrollHeight;
+}
+
+    function hapusProduk(i) { 
+    if(confirm(`Hapus ${products[i].nama}?`)) { 
+        products.splice(i,1); 
+        localStorage.setItem('p_db_pro',JSON.stringify(products)); 
+        renderProduk(); 
+        renderProdukKasir();  // <-- TAMBAHKAN BARIS INI
+    } 
+}
     function escapeHtml(str) { return str.replace(/[&<>]/g, function(m) { if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m; }); }
 
     // ==================== CART ====================
@@ -678,6 +772,7 @@
         resetKasir();
         renderProduk();
         renderLaporan();
+        renderProdukKasir();
     }
 
     function showStruk(data) {
@@ -702,7 +797,8 @@
         container.innerHTML = sales.slice().reverse().map(s => `<div class="laporan-card" onclick='showStruk(${JSON.stringify(s)})'><div>🧾</div><div><div>${s.id}</div><div style="font-size:12px">${s.tgl}</div></div><div style="margin-left:auto; font-weight:800">${formatRp(s.total)}</div></div>`).join('');
     }
 
-    window.onload = () => { startClock(); updateOnlineStatus(); renderProduk(); renderLaporan(); };
+    window.onload = () => { startClock(); updateOnlineStatus(); renderProduk(); renderLaporan(); renderProdukKasir();
+    };
 </script>
 </body>
 </html>
