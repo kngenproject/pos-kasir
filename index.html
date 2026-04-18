@@ -16,7 +16,7 @@
     <title>ProPOS - Smart POS</title>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@500" rel="stylesheet">
     <style>
         * {
             box-sizing: border-box;
@@ -361,6 +361,40 @@
         .cart-empty { text-align: center; padding: 24px; color: var(--text-3); }
         .input-with-btn { display: flex; gap: 8px; margin-bottom: 12px; }
         .input-with-btn input { margin-bottom: 0; flex: 1; }
+        
+        /* Scanner Modal Styles */
+        .scanner-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.9);
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .scanner-modal.active {
+            display: flex;
+        }
+        .scanner-container {
+            width: 100%;
+            max-width: 500px;
+            background: #000;
+            border-radius: 20px;
+            overflow: hidden;
+        }
+        #scanner-video {
+            width: 100%;
+            height: auto;
+            min-height: 300px;
+        }
+        .scanner-controls {
+            padding: 16px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -446,7 +480,7 @@
     <div class="scanner-container">
         <div id="scanner-video"></div>
         <div class="scanner-controls">
-            <button class="btn" onclick="closeScanner()">Tutup</button>
+            <button class="btn btn-danger" onclick="closeScanner()">Tutup</button>
         </div>
     </div>
 </div>
@@ -480,45 +514,73 @@
     let scanMode = 'kasir';
     let produkListFilter = '';
     
-    // Audio context untuk suara beep
+    // ==================== PERBAIKAN SUARA BEEP ====================
+    // Menggunakan Web Audio API dengan penanganan user gesture yang lebih baik
     let audioCtx = null;
     
-    const formatRp = (n) => "Rp " + Number(n).toLocaleString('id-ID');
-
-    // ==================== SUARA BEEP ====================
+    // Fungsi untuk menginisialisasi atau melanjutkan AudioContext
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume().catch(e => console.warn('Audio resume gagal:', e));
+        }
+        return audioCtx;
+    }
+    
+    // Fungsi untuk memainkan beep (dipanggil setelah user gesture)
     function playBeep() {
-        try {
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume().then(() => {
-                    generateBeep();
-                }).catch(e => console.log("Gagal resume audio:", e));
-            } else {
-                generateBeep();
-            }
+        // Coba inisialisasi audio (jika belum)
+        const ctx = initAudio();
+        if (!ctx || ctx.state !== 'running') {
+            // Fallback: vibrasi saja
             if (navigator.vibrate) navigator.vibrate(100);
+            return;
+        }
+        
+        try {
+            const now = ctx.currentTime;
+            const oscillator = ctx.createOscillator();
+            const gain = ctx.createGain();
+            oscillator.connect(gain);
+            gain.connect(ctx.destination);
+            oscillator.type = 'sine';
+            oscillator.frequency.value = 880; // nada tinggi
+            gain.gain.setValueAtTime(0.15, now);
+            gain.gain.exponentialRampToValueAtTime(0.00001, now + 0.2);
+            oscillator.start(now);
+            oscillator.stop(now + 0.2);
         } catch(e) {
-            console.log("Web Audio API tidak didukung:", e);
+            console.warn('Gagal memainkan beep:', e);
+        }
+        
+        // Vibrasi sebagai indikator tambahan
+        if (navigator.vibrate) navigator.vibrate(100);
+    }
+    
+    // Fungsi untuk memastikan audio diaktifkan melalui user gesture (dipanggil saat tombol scan ditekan)
+    function enableAudioForScan() {
+        const ctx = initAudio();
+        if (ctx && ctx.state === 'suspended') {
+            ctx.resume().then(() => {
+                console.log('AudioContext resumed by user gesture');
+                // Mainkan beep singkat sebagai konfirmasi (opsional)
+                try {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.frequency.value = 440;
+                    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.1);
+                    osc.start(ctx.currentTime);
+                    osc.stop(ctx.currentTime + 0.1);
+                } catch(e) {}
+            });
         }
     }
     
-    function generateBeep() {
-        if (!audioCtx) return;
-        const now = audioCtx.currentTime;
-        const oscillator = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        oscillator.connect(gain);
-        gain.connect(audioCtx.destination);
-        oscillator.type = 'sine';
-        oscillator.frequency.value = 880;
-        gain.gain.setValueAtTime(0.15, now);
-        gain.gain.exponentialRampToValueAtTime(0.00001, now + 0.2);
-        oscillator.start(now);
-        oscillator.stop(now + 0.2);
-    }
-
     // ==================== PWA ====================
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
@@ -572,6 +634,9 @@
     // ==================== SCANNER ====================
     async function startScanner() {
         if (isScanning) return;
+        // Aktifkan audio terlebih dahulu (user gesture)
+        enableAudioForScan();
+        
         const modal = document.getElementById('scanner-modal');
         modal.classList.add('active');
         const videoDiv = document.getElementById('scanner-video');
@@ -593,6 +658,7 @@
         lastCode = code;
         lastTime = now;
         
+        // MAIN BEEP SUARA!
         playBeep();
         
         if (scanMode === 'kasir') {
@@ -752,6 +818,8 @@
             return m; 
         }); 
     }
+    
+    const formatRp = (n) => "Rp " + Number(n).toLocaleString('id-ID');
 
     // ==================== CART ====================
     function addToCart(bc) {
@@ -859,6 +927,9 @@
         renderProdukList();
         renderLaporan(); 
         updateCartUI();
+        // Inisialisasi audio context tanpa resume (menunggu user gesture)
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        // Jangan resume sekarang, nanti saat scan
     };
 </script>
 </body>
