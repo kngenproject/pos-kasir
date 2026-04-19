@@ -560,7 +560,7 @@
             oscillator.type = 'sine';
             oscillator.frequency.value = 880;
             // VOLUME KERAS (gain 0.8)
-            gain.gain.setValueAtTime(0.8, now);
+            gain.gain.setValueAtTime(1.5, now);
             gain.gain.exponentialRampToValueAtTime(0.00001, now + 0.25);
             oscillator.start(now);
             oscillator.stop(now + 0.25);
