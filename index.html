@@ -226,7 +226,50 @@
             padding: 16px;
             font-size: 18px;
             border-radius: 60px;
+            margin-bottom: 0;
+            width: auto;
+            flex: 1;
+        }
+
+        /* Preview kamera kecil seukuran tombol scan (horizontal) */
+        .scan-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
             margin-bottom: 16px;
+        }
+        .scanner-preview-small {
+            width: 70px;
+            height: 70px;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            display: none;
+            flex-shrink: 0;
+            border: 2px solid var(--primary);
+        }
+        .scanner-preview-small.active {
+            display: block;
+        }
+        #kasir-scanner-video-small {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .btn-stop-scan-small {
+            background: var(--danger);
+            color: white;
+            padding: 8px 12px;
+            font-size: 13px;
+            border-radius: 40px;
+            width: auto;
+            display: inline-block;
+        }
+        .scan-controls-small {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
         }
 
         .product-grid {
@@ -378,6 +421,7 @@
         .input-with-btn { display: flex; gap: 8px; margin-bottom: 12px; }
         .input-with-btn input { margin-bottom: 0; flex: 1; }
         
+        /* Modal scanner untuk inventory (fullscreen) */
         .scanner-modal {
             position: fixed;
             top: 0;
@@ -408,6 +452,22 @@
             padding: 16px;
             text-align: center;
         }
+
+        .mini-toast {
+            position: fixed;
+            bottom: 30%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 30px;
+            font-size: 14px;
+            z-index: 1000;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
     </style>
 </head>
 <body>
@@ -429,7 +489,15 @@
 
     <!-- TAB KASIR -->
     <div id="tab-kasir" class="tab-content active">
-        <button class="btn btn-scan" onclick="startKasirScanner()">📷 Scan Barcode</button>
+        <div class="scan-row">
+            <div class="scan-controls-small">
+                <button class="btn btn-scan" id="btn-start-scan" onclick="startKasirScanner()">📷 Scan Barcode</button>
+                <button class="btn btn-outline btn-stop-scan-small" id="btn-stop-scan" onclick="stopKasirScanner()" style="display:none;">⏹ Berhenti</button>
+            </div>
+            <div id="kasir-scanner-preview" class="scanner-preview-small">
+                <div id="kasir-scanner-video-small"></div>
+            </div>
+        </div>
         <div class="card">
             <div class="card-title">🛒 Keranjang</div>
             <div id="cart-items"><div class="cart-empty">🛒 Kosong</div></div>
@@ -492,7 +560,7 @@
     <div class="nav-item" data-tab="tab-laporan"><div class="nav-icon">📊</div><span class="nav-label">Laporan</span></div>
 </nav>
 
-<!-- MODAL SCANNER -->
+<!-- Modal scanner untuk inventory (fullscreen) -->
 <div id="scanner-modal" class="scanner-modal">
     <div class="scanner-container">
         <div id="scanner-video"></div>
@@ -518,6 +586,8 @@
     </div>
 </div>
 
+<div id="mini-toast" class="mini-toast"></div>
+
 <script>
     // ==================== DATA ====================
     let products = JSON.parse(localStorage.getItem('p_db_pro')) || [];
@@ -526,7 +596,8 @@
     let deferredInstallPrompt = null;
     let swRegistration = null;
     let html5QrCode = null;
-    let isScanning = false;
+    let isKasirScanning = false;
+    let isInventoryScanning = false;
     let lastCode = "", lastTime = 0;
     let scanMode = 'kasir';
     let produkListFilter = '';
@@ -550,7 +621,6 @@
             if (navigator.vibrate) navigator.vibrate(100);
             return;
         }
-        
         try {
             const now = ctx.currentTime;
             const oscillator = ctx.createOscillator();
@@ -559,38 +629,19 @@
             gain.connect(ctx.destination);
             oscillator.type = 'sine';
             oscillator.frequency.value = 880;
-            // VOLUME KERAS (gain 0.8)
-            gain.gain.setValueAtTime(1.5, now);
+            gain.gain.setValueAtTime(0.8, now);
             gain.gain.exponentialRampToValueAtTime(0.00001, now + 0.25);
             oscillator.start(now);
             oscillator.stop(now + 0.25);
-        } catch(e) {
-            console.warn('Gagal memainkan beep:', e);
-        }
-        
+        } catch(e) { console.warn('Beep gagal:', e); }
         if (navigator.vibrate) navigator.vibrate(100);
     }
     
-    function enableAudioForScan() {
-        const ctx = initAudio();
-        if (ctx && ctx.state === 'suspended') {
-            ctx.resume().then(() => {
-                console.log('AudioContext resumed by user gesture');
-                // Beep konfirmasi singkat
-                try {
-                    const now = ctx.currentTime;
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-                    osc.connect(gain);
-                    gain.connect(ctx.destination);
-                    osc.frequency.value = 440;
-                    gain.gain.setValueAtTime(1.5, now);
-                    gain.gain.exponentialRampToValueAtTime(0.00001, now + 0.1);
-                    osc.start(now);
-                    osc.stop(now + 0.1);
-                } catch(e) {}
-            });
-        }
+    function showMiniToast(msg) {
+        const toast = document.getElementById('mini-toast');
+        toast.textContent = msg;
+        toast.style.opacity = '1';
+        setTimeout(() => { toast.style.opacity = '0'; }, 1500);
     }
     
     // ==================== PWA & SERVICE WORKER ====================
@@ -601,67 +652,39 @@
                 reg.onupdatefound = () => {
                     const w = reg.installing;
                     w.onstatechange = () => {
-                        if (w.state === 'installed' && navigator.serviceWorker.controller) {
-                            showUpdateToast();
-                        }
+                        if (w.state === 'installed' && navigator.serviceWorker.controller) showUpdateToast();
                     };
                 };
-            }).catch(err => console.log('SW registration failed:', err));
+            }).catch(err => console.log('SW gagal:', err));
         });
     }
     
     function showUpdateToast() {
         const toast = document.getElementById('update-toast');
         toast.style.display = 'flex';
-        // Auto hide after 30 seconds
-        setTimeout(() => {
-            if (toast.style.display === 'flex') toast.style.display = 'none';
-        }, 30000);
+        setTimeout(() => { if (toast.style.display === 'flex') toast.style.display = 'none'; }, 30000);
     }
     
     function reloadApp() {
-        if (swRegistration && swRegistration.waiting) {
-            swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
-        }
+        if (swRegistration && swRegistration.waiting) swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
         window.location.reload();
     }
     
     window.addEventListener('beforeinstallprompt', e => {
         e.preventDefault();
         deferredInstallPrompt = e;
-        if (!localStorage.getItem('install_dismissed')) {
-            setTimeout(() => document.getElementById('install-banner').style.display = 'flex', 3000);
-        }
+        if (!localStorage.getItem('install_dismissed')) setTimeout(() => document.getElementById('install-banner').style.display = 'flex', 3000);
     });
     
-    function installPWA() {
-        if (deferredInstallPrompt) {
-            deferredInstallPrompt.prompt();
-            deferredInstallPrompt.userChoice.then(() => {
-                document.getElementById('install-banner').style.display = 'none';
-                deferredInstallPrompt = null;
-            });
-        }
-    }
-    
-    function dismissInstall() {
-        localStorage.setItem('install_dismissed', '1');
-        document.getElementById('install-banner').style.display = 'none';
-    }
-    
-    function updateOnlineStatus() {
-        const b = document.getElementById('online-badge');
-        b.textContent = navigator.onLine ? '● Online' : '● Offline';
-        b.className = navigator.onLine ? 'online' : 'offline';
-    }
+    function installPWA() { deferredInstallPrompt?.prompt(); deferredInstallPrompt?.userChoice.then(() => document.getElementById('install-banner').style.display = 'none'); }
+    function dismissInstall() { localStorage.setItem('install_dismissed', '1'); document.getElementById('install-banner').style.display = 'none'; }
+    function updateOnlineStatus() { const b = document.getElementById('online-badge'); b.textContent = navigator.onLine ? '● Online' : '● Offline'; b.className = navigator.onLine ? 'online' : 'offline'; }
     window.addEventListener('online', updateOnlineStatus);
     window.addEventListener('offline', updateOnlineStatus);
     
     function startClock() {
         const el = document.getElementById('header-clock');
-        setInterval(() => {
-            el.textContent = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
-        }, 1000);
+        setInterval(() => { el.textContent = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit', second:'2-digit' }); }, 1000);
     }
     
     // ==================== NAVIGASI ====================
@@ -670,86 +693,113 @@
         document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
         document.getElementById(tabId).classList.add('active');
         if (navEl) navEl.classList.add('active');
-        closeScanner();
+        if (isKasirScanning) stopKasirScanner();
         if (tabId === 'tab-inventory') renderInventoryList();
         if (tabId === 'tab-laporan') renderLaporan();
         if (tabId === 'tab-produk-list') renderProdukList();
     }
     
     document.querySelectorAll('.nav-item').forEach(item => {
-        item.addEventListener('click', () => {
-            const tabId = item.getAttribute('data-tab');
-            showTab(tabId, item);
-        });
+        item.addEventListener('click', () => { const tabId = item.getAttribute('data-tab'); showTab(tabId, item); });
     });
     
-    // ==================== SCANNER ====================
-    async function startScanner() {
-        if (isScanning) return;
-        enableAudioForScan();
-        const modal = document.getElementById('scanner-modal');
-        modal.classList.add('active');
-        const videoDiv = document.getElementById('scanner-video');
+    // ==================== SCANNER KASIR (Preview kecil di samping, tetap menyala) ====================
+    async function startKasirScanner() {
+        if (isKasirScanning) return;
+        initAudio();
+        const previewDiv = document.getElementById('kasir-scanner-preview');
+        const videoDiv = document.getElementById('kasir-scanner-video-small');
+        previewDiv.classList.add('active');
         videoDiv.innerHTML = '';
+        document.getElementById('btn-start-scan').style.display = 'none';
+        document.getElementById('btn-stop-scan').style.display = 'inline-block';
+        
         try {
-            html5QrCode = new Html5Qrcode("scanner-video");
-            await html5QrCode.start({ facingMode: "environment" }, { fps: 20, qrbox: { width: 250, height: 200 } }, onScanSuccess);
-            isScanning = true;
+            html5QrCode = new Html5Qrcode("kasir-scanner-video-small");
+            await html5QrCode.start({ facingMode: "environment" }, { fps: 20, qrbox: { width: 100, height: 100 } }, onKasirScanSuccess);
+            isKasirScanning = true;
         } catch (err) {
             console.error(err);
             alert("Gagal mengakses kamera. Pastikan izin diberikan.");
-            closeScanner();
+            stopKasirScanner();
         }
     }
     
-    function onScanSuccess(code) {
+    function onKasirScanSuccess(code) {
         const now = Date.now();
         if (code === lastCode && (now - lastTime) < 2000) return;
         lastCode = code;
         lastTime = now;
         
-        playBeep();  // SUARA BEEP
-        
-        if (scanMode === 'kasir') {
-            addToCart(code);
-        } else if (scanMode === 'produk') {
-            document.getElementById('p-barcode').value = code;
-            const product = products.find(p => p.barcode === code);
-            if (product) {
-                document.getElementById('p-nama').value = product.nama;
-                document.getElementById('p-harga').value = product.harga;
-                document.getElementById('p-stok').value = product.stok;
-            } else {
-                document.getElementById('p-nama').value = '';
-                document.getElementById('p-harga').value = '';
-                document.getElementById('p-stok').value = '';
+        playBeep();
+        const product = products.find(p => p.barcode === code);
+        if (product) {
+            if (product.stok <= 0) {
+                showMiniToast(`⚠️ Stok ${product.nama} habis!`);
+                return;
             }
-            scanMode = 'kasir';
+            addToCart(code);
+            showMiniToast(`✅ ${product.nama} ditambahkan`);
+        } else {
+            showMiniToast(`❌ Barcode ${code} tidak ditemukan`);
+        }
+    }
+    
+    async function stopKasirScanner() {
+        if (html5QrCode && isKasirScanning) {
+            try { await html5QrCode.stop(); } catch(e) {}
+            html5QrCode = null;
+        }
+        isKasirScanning = false;
+        document.getElementById('kasir-scanner-preview').classList.remove('active');
+        document.getElementById('kasir-scanner-video-small').innerHTML = '';
+        document.getElementById('btn-start-scan').style.display = 'inline-block';
+        document.getElementById('btn-stop-scan').style.display = 'none';
+    }
+    
+    // ==================== SCANNER INVENTORY (Fullscreen, tutup setelah scan) ====================
+    async function startProductScanner() {
+        if (isInventoryScanning) return;
+        const modal = document.getElementById('scanner-modal');
+        modal.classList.add('active');
+        const videoDiv = document.getElementById('scanner-video');
+        videoDiv.innerHTML = '';
+        try {
+            let tempScanner = new Html5Qrcode("scanner-video");
+            await tempScanner.start({ facingMode: "environment" }, { fps: 20, qrbox: { width: 250, height: 200 } }, onInventoryScanSuccess);
+            isInventoryScanning = true;
+            window.tempScanner = tempScanner;
+        } catch (err) {
+            alert("Gagal mengakses kamera.");
+            closeScanner();
+        }
+    }
+    
+    function onInventoryScanSuccess(code) {
+        playBeep();
+        document.getElementById('p-barcode').value = code;
+        const product = products.find(p => p.barcode === code);
+        if (product) {
+            document.getElementById('p-nama').value = product.nama;
+            document.getElementById('p-harga').value = product.harga;
+            document.getElementById('p-stok').value = product.stok;
+        } else {
+            document.getElementById('p-nama').value = '';
+            document.getElementById('p-harga').value = '';
+            document.getElementById('p-stok').value = '';
         }
         closeScanner();
     }
     
     async function closeScanner() {
-        if (html5QrCode && isScanning) {
-            try { await html5QrCode.stop(); } catch(e) {}
-            html5QrCode = null;
+        if (window.tempScanner && isInventoryScanning) {
+            try { await window.tempScanner.stop(); } catch(e) {}
+            window.tempScanner = null;
         }
-        isScanning = false;
-        scanMode = 'kasir';
+        isInventoryScanning = false;
         const modal = document.getElementById('scanner-modal');
         modal.classList.remove('active');
-        const videoDiv = document.getElementById('scanner-video');
-        videoDiv.innerHTML = '';
-    }
-    
-    function startKasirScanner() {
-        scanMode = 'kasir';
-        startScanner();
-    }
-    
-    function startProductScanner() {
-        scanMode = 'produk';
-        startScanner();
+        document.getElementById('scanner-video').innerHTML = '';
     }
     
     // ==================== PRODUK CRUD ====================
@@ -758,16 +808,8 @@
         const nama = document.getElementById('p-nama').value.trim();
         const harga = parseInt(document.getElementById('p-harga').value);
         const stok = parseInt(document.getElementById('p-stok').value) || 0;
-        
-        if (!nama || isNaN(harga)) { 
-            alert("Nama dan harga harus diisi!"); 
-            return; 
-        }
-        
-        if (barcode === "") {
-            barcode = "PRD" + Date.now() + Math.floor(Math.random() * 1000);
-        }
-        
+        if (!nama || isNaN(harga)) { alert("Nama dan harga harus diisi!"); return; }
+        if (barcode === "") barcode = "PRD" + Date.now() + Math.floor(Math.random() * 1000);
         const idx = products.findIndex(p => p.barcode === barcode);
         if (idx > -1) {
             products[idx] = { barcode, nama, harga, stok };
@@ -776,11 +818,9 @@
             products.push({ barcode, nama, harga, stok });
             alert(`✅ Produk ${nama} berhasil disimpan!\nBarcode: ${barcode}`);
         }
-        
         localStorage.setItem('p_db_pro', JSON.stringify(products));
         renderInventoryList();
         renderProdukList();
-        
         document.getElementById('p-barcode').value = "";
         document.getElementById('p-nama').value = "";
         document.getElementById('p-harga').value = "";
@@ -831,18 +871,12 @@
     function renderProdukList() {
         const container = document.getElementById('produk-list-container');
         if (!container) return;
-        
         let filtered = products;
         if (produkListFilter) {
             const f = produkListFilter.toLowerCase();
             filtered = products.filter(p => p.nama.toLowerCase().includes(f) || p.barcode.toLowerCase().includes(f));
         }
-        
-        if (filtered.length === 0) {
-            container.innerHTML = '<div class="cart-empty">📦 Tidak ada produk ditemukan</div>';
-            return;
-        }
-        
+        if (filtered.length === 0) { container.innerHTML = '<div class="cart-empty">📦 Tidak ada produk ditemukan</div>'; return; }
         container.innerHTML = filtered.map(p => `
             <div class="product-card">
                 <h4>${escapeHtml(p.nama)}</h4>
@@ -860,12 +894,7 @@
     
     function escapeHtml(str) { 
         if (!str) return '';
-        return str.replace(/[&<>]/g, function(m) { 
-            if(m==='&') return '&amp;'; 
-            if(m==='<') return '&lt;'; 
-            if(m==='>') return '&gt;'; 
-            return m; 
-        }); 
+        return str.replace(/[&<>]/g, m => m==='&'?'&amp;':m==='<'?'&lt;':'&gt;'); 
     }
     
     const formatRp = (n) => "Rp " + Number(n).toLocaleString('id-ID');
