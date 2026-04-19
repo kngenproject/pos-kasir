@@ -224,33 +224,38 @@
         .btn-scan {
             background: linear-gradient(135deg, var(--primary), var(--primary-light));
             color: white;
-            padding: 12px 16px;
-            font-size: 16px;
-            border-radius: 40px;
-            margin-bottom: 0;
+            padding: 14px 24px;
+            font-size: 18px;
+            border-radius: 60px;
             width: auto;
+            min-width: 200px;
+            box-shadow: 0 6px 14px rgba(29,78,216,0.3);
         }
 
+        /* ========== MODIFIKASI: TOMBOL SCAN DI TENGAH ========== */
         .scan-row {
             display: flex;
+            flex-direction: column;
             align-items: center;
-            gap: 12px;
-            margin-bottom: 16px;
+            justify-content: center;
+            gap: 16px;
+            margin-bottom: 20px;
         }
         .scan-controls-small {
             display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-shrink: 0;
+            justify-content: center;
+            width: 100%;
         }
         .scanner-preview-small {
-            flex: 1;
-            height: 70px;
+            width: 100%;
+            max-width: 320px;
+            height: 220px;
             background: #000;
-            border-radius: 12px;
+            border-radius: 20px;
             overflow: hidden;
             display: none;
             border: 2px solid var(--primary);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
         }
         .scanner-preview-small.active {
             display: block;
@@ -263,12 +268,14 @@
         .btn-stop-scan-small {
             background: var(--danger);
             color: white;
-            padding: 8px 12px;
-            font-size: 13px;
+            padding: 10px 20px;
+            font-size: 16px;
             border-radius: 40px;
             width: auto;
             display: inline-block;
+            margin-left: 10px;
         }
+        /* ================================================= */
 
         .product-grid {
             display: grid;
@@ -285,15 +292,15 @@
         }
         .product-card h4 {
             display: -webkit-box;
-            -webkit-line-clamp: 2;      /* Untuk browser berbasis WebKit (Chrome, Safari, Edge) */
-            line-clamp: 2;              /* Properti standar untuk kompatibilitas masa depan */
+            -webkit-line-clamp: 2;
+            line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
             text-overflow: ellipsis;
             word-break: break-word;
             white-space: normal;
             line-height: 1.3;
-            max-height: 2.6em;          /* Fallback untuk browser yang tidak support line-clamp */
+            max-height: 2.6em;
         }
         .product-price {
             font-weight: 800;
@@ -483,13 +490,12 @@
         <div class="header-right">
             <span id="online-badge" class="online">● Online</span>
             <div class="header-time" id="header-clock">--:--</div>
-            <!-- Tombol refresh dengan tampilan refresh biasa (hard refresh) -->
             <button class="refresh-btn" onclick="hardRefresh()" title="Refresh (bersihkan cache & update)">🔄</button>
         </div>
     </header>
     <div id="install-banner" class="no-print"><p>📲 Install ProPOS di layar utama!</p><button class="btn-install" onclick="installPWA()">Install</button><button class="btn-dismiss" onclick="dismissInstall()">×</button></div>
 
-    <!-- TAB KASIR -->
+    <!-- TAB KASIR (tombol scan sudah di tengah) -->
     <div id="tab-kasir" class="tab-content active">
         <div class="scan-row">
             <div id="kasir-scanner-preview" class="scanner-preview-small">
@@ -604,13 +610,12 @@
     let scanMode = 'kasir';
     let produkListFilter = '';
     
-    // ==================== HARD REFRESH (BERSIHKAN CACHE & UPDATE, TANPA HAPUS DATA) ====================
+    // ==================== HARD REFRESH ====================
     async function hardRefresh() {
         if (!confirm("🔄 Refresh akan membersihkan cache & mengambil versi terbaru.\nData produk dan transaksi Anda tetap aman. Lanjutkan?")) return;
         
         showMiniToast("⚡ Membersihkan cache & memuat ulang...");
         
-        // 1. Hapus cache Service Worker
         if ('serviceWorker' in navigator) {
             const registrations = await navigator.serviceWorker.getRegistrations();
             for (let registration of registrations) {
@@ -619,14 +624,12 @@
             }
         }
         
-        // 2. Hapus cache dari Cache API
         if ('caches' in window) {
             const cacheNames = await caches.keys();
             await Promise.all(cacheNames.map(name => caches.delete(name)));
             console.log("Cache storage cleared");
         }
         
-        // 3. Hard reload (abaikan cache HTTP)
         window.location.reload(true);
     }
     
@@ -672,7 +675,7 @@
         setTimeout(() => { toast.style.opacity = '0'; }, 1500);
     }
     
-    // ==================== PWA & SERVICE WORKER ====================
+    // ==================== PWA ====================
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('./sw.js').then(reg => {
@@ -681,7 +684,6 @@
                     const w = reg.installing;
                     w.onstatechange = () => {
                         if (w.state === 'installed' && navigator.serviceWorker.controller) {
-                            // Tampilkan toast update, tombol akan memanggil hardRefresh
                             const toast = document.getElementById('update-toast');
                             toast.style.display = 'flex';
                             setTimeout(() => { if (toast.style.display === 'flex') toast.style.display = 'none'; }, 30000);
