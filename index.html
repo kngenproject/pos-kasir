@@ -67,6 +67,7 @@
             background: var(--surface);
             display: flex;
             justify-content: space-between;
+            align-items: center;
             border-bottom: 1px solid var(--border);
             flex-shrink: 0;
         }
@@ -83,6 +84,11 @@
         }
         .logo-text { font-weight: 800; }
         .logo-text span { color: var(--primary); }
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
         .header-time {
             font-family: 'DM Mono', monospace;
             font-size: 12px;
@@ -98,6 +104,20 @@
         }
         #online-badge.online { background: #d1fae5; color: #065f46; }
         #online-badge.offline { background: #fee2e2; color: #991b1b; }
+        .refresh-btn {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 30px;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg);
+        }
 
         #install-banner {
             background: linear-gradient(135deg, var(--primary), var(--primary-light));
@@ -240,9 +260,7 @@
             color: var(--text-3);
             margin: 6px 0;
         }
-        .product-stock.low {
-            color: var(--danger);
-        }
+        .product-stock.low { color: var(--danger); }
         .btn-add-cart {
             background: var(--primary);
             color: white;
@@ -256,10 +274,7 @@
             cursor: pointer;
         }
         .btn-add-cart:active { transform: scale(0.96); }
-        .btn-add-cart.disabled {
-            background: #cbd5e1;
-            cursor: not-allowed;
-        }
+        .btn-add-cart.disabled { background: #cbd5e1; cursor: not-allowed; }
 
         .search-bar {
             width: 100%;
@@ -356,13 +371,13 @@
             align-items: center;
             gap: 12px;
             z-index: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
         }
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .cart-empty { text-align: center; padding: 24px; color: var(--text-3); }
         .input-with-btn { display: flex; gap: 8px; margin-bottom: 12px; }
         .input-with-btn input { margin-bottom: 0; flex: 1; }
         
-        /* Scanner Modal Styles */
         .scanner-modal {
             position: fixed;
             top: 0;
@@ -376,9 +391,7 @@
             justify-content: center;
             align-items: center;
         }
-        .scanner-modal.active {
-            display: flex;
-        }
+        .scanner-modal.active { display: flex; }
         .scanner-container {
             width: 100%;
             max-width: 500px;
@@ -406,7 +419,11 @@
 <div id="app">
     <header class="app-header no-print">
         <div class="logo"><div class="logo-icon">POS</div><span class="logo-text">Pro<span>POS</span></span></div>
-        <div class="header-right"><span id="online-badge" class="online">● Online</span><div class="header-time" id="header-clock">--:--</div></div>
+        <div class="header-right">
+            <span id="online-badge" class="online">● Online</span>
+            <div class="header-time" id="header-clock">--:--</div>
+            <button class="refresh-btn" onclick="window.location.reload()" title="Refresh aplikasi">🔄</button>
+        </div>
     </header>
     <div id="install-banner" class="no-print"><p>📲 Install ProPOS di layar utama!</p><button class="btn-install" onclick="installPWA()">Install</button><button class="btn-dismiss" onclick="dismissInstall()">×</button></div>
 
@@ -514,11 +531,9 @@
     let scanMode = 'kasir';
     let produkListFilter = '';
     
-    // ==================== PERBAIKAN SUARA BEEP ====================
-    // Menggunakan Web Audio API dengan penanganan user gesture yang lebih baik
+    // ==================== SUARA BEEP (VOLUME KERAS) ====================
     let audioCtx = null;
     
-    // Fungsi untuk menginisialisasi atau melanjutkan AudioContext
     function initAudio() {
         if (!audioCtx) {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -529,12 +544,9 @@
         return audioCtx;
     }
     
-    // Fungsi untuk memainkan beep (dipanggil setelah user gesture)
     function playBeep() {
-        // Coba inisialisasi audio (jika belum)
         const ctx = initAudio();
         if (!ctx || ctx.state !== 'running') {
-            // Fallback: vibrasi saja
             if (navigator.vibrate) navigator.vibrate(100);
             return;
         }
@@ -546,42 +558,42 @@
             oscillator.connect(gain);
             gain.connect(ctx.destination);
             oscillator.type = 'sine';
-            oscillator.frequency.value = 880; // nada tinggi
-            gain.gain.setValueAtTime(0.6, now);
-            gain.gain.exponentialRampToValueAtTime(0.00001, now + 0.2);
+            oscillator.frequency.value = 880;
+            // VOLUME KERAS (gain 0.8)
+            gain.gain.setValueAtTime(0.8, now);
+            gain.gain.exponentialRampToValueAtTime(0.00001, now + 0.25);
             oscillator.start(now);
-            oscillator.stop(now + 0.2);
+            oscillator.stop(now + 0.25);
         } catch(e) {
             console.warn('Gagal memainkan beep:', e);
         }
         
-        // Vibrasi sebagai indikator tambahan
         if (navigator.vibrate) navigator.vibrate(100);
     }
     
-    // Fungsi untuk memastikan audio diaktifkan melalui user gesture (dipanggil saat tombol scan ditekan)
     function enableAudioForScan() {
         const ctx = initAudio();
         if (ctx && ctx.state === 'suspended') {
             ctx.resume().then(() => {
                 console.log('AudioContext resumed by user gesture');
-                // Mainkan beep singkat sebagai konfirmasi (opsional)
+                // Beep konfirmasi singkat
                 try {
+                    const now = ctx.currentTime;
                     const osc = ctx.createOscillator();
                     const gain = ctx.createGain();
                     osc.connect(gain);
                     gain.connect(ctx.destination);
                     osc.frequency.value = 440;
-                    gain.gain.setValueAtTime(0.1, ctx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.1);
-                    osc.start(ctx.currentTime);
-                    osc.stop(ctx.currentTime + 0.1);
+                    gain.gain.setValueAtTime(0.4, now);
+                    gain.gain.exponentialRampToValueAtTime(0.00001, now + 0.1);
+                    osc.start(now);
+                    osc.stop(now + 0.1);
                 } catch(e) {}
             });
         }
     }
     
-    // ==================== PWA ====================
+    // ==================== PWA & SERVICE WORKER ====================
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('./sw.js').then(reg => {
@@ -589,29 +601,69 @@
                 reg.onupdatefound = () => {
                     const w = reg.installing;
                     w.onstatechange = () => {
-                        if (w.state === 'installed' && navigator.serviceWorker.controller) showUpdateToast();
+                        if (w.state === 'installed' && navigator.serviceWorker.controller) {
+                            showUpdateToast();
+                        }
                     };
                 };
-            }).catch(console.log);
+            }).catch(err => console.log('SW registration failed:', err));
         });
     }
-    function showUpdateToast() { document.getElementById('update-toast').style.display = 'flex'; }
-    function reloadApp() { if (swRegistration?.waiting) swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' }); window.location.reload(); }
+    
+    function showUpdateToast() {
+        const toast = document.getElementById('update-toast');
+        toast.style.display = 'flex';
+        // Auto hide after 30 seconds
+        setTimeout(() => {
+            if (toast.style.display === 'flex') toast.style.display = 'none';
+        }, 30000);
+    }
+    
+    function reloadApp() {
+        if (swRegistration && swRegistration.waiting) {
+            swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+        window.location.reload();
+    }
+    
     window.addEventListener('beforeinstallprompt', e => {
         e.preventDefault();
         deferredInstallPrompt = e;
-        if (!localStorage.getItem('install_dismissed')) setTimeout(() => document.getElementById('install-banner').style.display = 'flex', 3000);
+        if (!localStorage.getItem('install_dismissed')) {
+            setTimeout(() => document.getElementById('install-banner').style.display = 'flex', 3000);
+        }
     });
-    function installPWA() { deferredInstallPrompt?.prompt(); deferredInstallPrompt?.userChoice.then(() => document.getElementById('install-banner').style.display = 'none'); }
-    function dismissInstall() { localStorage.setItem('install_dismissed', '1'); document.getElementById('install-banner').style.display = 'none'; }
-    function updateOnlineStatus() { const b = document.getElementById('online-badge'); b.textContent = navigator.onLine ? '● Online' : '● Offline'; b.className = navigator.onLine ? 'online' : 'offline'; }
+    
+    function installPWA() {
+        if (deferredInstallPrompt) {
+            deferredInstallPrompt.prompt();
+            deferredInstallPrompt.userChoice.then(() => {
+                document.getElementById('install-banner').style.display = 'none';
+                deferredInstallPrompt = null;
+            });
+        }
+    }
+    
+    function dismissInstall() {
+        localStorage.setItem('install_dismissed', '1');
+        document.getElementById('install-banner').style.display = 'none';
+    }
+    
+    function updateOnlineStatus() {
+        const b = document.getElementById('online-badge');
+        b.textContent = navigator.onLine ? '● Online' : '● Offline';
+        b.className = navigator.onLine ? 'online' : 'offline';
+    }
     window.addEventListener('online', updateOnlineStatus);
     window.addEventListener('offline', updateOnlineStatus);
+    
     function startClock() {
         const el = document.getElementById('header-clock');
-        setInterval(() => el.textContent = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit', second:'2-digit' }), 1000);
+        setInterval(() => {
+            el.textContent = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+        }, 1000);
     }
-
+    
     // ==================== NAVIGASI ====================
     function showTab(tabId, navEl) {
         document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
@@ -623,20 +675,18 @@
         if (tabId === 'tab-laporan') renderLaporan();
         if (tabId === 'tab-produk-list') renderProdukList();
     }
-
+    
     document.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', () => {
             const tabId = item.getAttribute('data-tab');
             showTab(tabId, item);
         });
     });
-
+    
     // ==================== SCANNER ====================
     async function startScanner() {
         if (isScanning) return;
-        // Aktifkan audio terlebih dahulu (user gesture)
         enableAudioForScan();
-        
         const modal = document.getElementById('scanner-modal');
         modal.classList.add('active');
         const videoDiv = document.getElementById('scanner-video');
@@ -651,15 +701,14 @@
             closeScanner();
         }
     }
-
+    
     function onScanSuccess(code) {
         const now = Date.now();
         if (code === lastCode && (now - lastTime) < 2000) return;
         lastCode = code;
         lastTime = now;
         
-        // MAIN BEEP SUARA!
-        playBeep();
+        playBeep();  // SUARA BEEP
         
         if (scanMode === 'kasir') {
             addToCart(code);
@@ -679,7 +728,7 @@
         }
         closeScanner();
     }
-
+    
     async function closeScanner() {
         if (html5QrCode && isScanning) {
             try { await html5QrCode.stop(); } catch(e) {}
@@ -692,17 +741,17 @@
         const videoDiv = document.getElementById('scanner-video');
         videoDiv.innerHTML = '';
     }
-
+    
     function startKasirScanner() {
         scanMode = 'kasir';
         startScanner();
     }
-
+    
     function startProductScanner() {
         scanMode = 'produk';
         startScanner();
     }
-
+    
     // ==================== PRODUK CRUD ====================
     function saveProduct() {
         let barcode = document.getElementById('p-barcode').value.trim();
@@ -737,7 +786,7 @@
         document.getElementById('p-harga').value = "";
         document.getElementById('p-stok').value = "";
     }
-
+    
     function editProduct(barcode) {
         const product = products.find(p => p.barcode === barcode);
         if (product) {
@@ -748,7 +797,7 @@
             document.querySelector('#tab-inventory .card').scrollIntoView({ behavior: 'smooth' });
         }
     }
-
+    
     function hapusProduk(barcode) {
         if(confirm(`Hapus produk ini?`)) { 
             products = products.filter(p => p.barcode !== barcode);
@@ -757,7 +806,7 @@
             renderProdukList();
         } 
     }
-
+    
     function renderInventoryList() {
         const container = document.getElementById('list-inventory');
         document.getElementById('prod-count').innerText = products.length;
@@ -778,7 +827,7 @@
             </div>
         `).join('');
     }
-
+    
     function renderProdukList() {
         const container = document.getElementById('produk-list-container');
         if (!container) return;
@@ -803,12 +852,12 @@
             </div>
         `).join('');
     }
-
+    
     function filterProdukList() {
         produkListFilter = document.getElementById('search-produk').value;
         renderProdukList();
     }
-
+    
     function escapeHtml(str) { 
         if (!str) return '';
         return str.replace(/[&<>]/g, function(m) { 
@@ -820,7 +869,7 @@
     }
     
     const formatRp = (n) => "Rp " + Number(n).toLocaleString('id-ID');
-
+    
     // ==================== CART ====================
     function addToCart(bc) {
         const p = products.find(i => i.barcode === bc);
@@ -835,7 +884,7 @@
         }
         updateCartUI();
     }
-
+    
     function changeQty(idx, delta) {
         const maxStok = products.find(p => p.barcode === cart[idx].barcode)?.stok || 0;
         cart[idx].qty += delta;
@@ -843,7 +892,7 @@
         else if (cart[idx].qty > maxStok) cart[idx].qty = maxStok;
         updateCartUI();
     }
-
+    
     function updateCartUI() {
         const container = document.getElementById('cart-items');
         if (!cart.length) { 
@@ -863,7 +912,7 @@
         document.getElementById('subtotal').innerText = formatRp(total);
         hitungKembalian();
     }
-
+    
     function hitungKembalian() {
         const total = cart.reduce((a,b)=>a+(b.harga*b.qty),0);
         const bayar = parseFloat(document.getElementById('input-bayar').value)||0;
@@ -872,9 +921,9 @@
         el.innerText = formatRp(kembali>=0?kembali:0);
         el.style.color = kembali>=0 ? "var(--secondary)" : "var(--danger)";
     }
-
+    
     function resetKasir() { cart = []; document.getElementById('input-bayar').value=""; updateCartUI(); }
-
+    
     // ==================== TRANSAKSI ====================
     function prosesTransaksi() {
         const total = cart.reduce((a,b)=>a+(b.harga*b.qty),0);
@@ -897,7 +946,7 @@
         renderProdukList();
         renderLaporan();
     }
-
+    
     function showStruk(data) {
         document.getElementById('r-tgl').innerText = data.tgl;
         document.getElementById('r-total').innerText = formatRp(data.total);
@@ -908,9 +957,9 @@
         document.getElementById('receipt-modal').style.display = "block";
         try { JsBarcode("#r-barcode-img", data.id, { height:40, displayValue:false, margin:0 }); } catch(e) {}
     }
-
+    
     function closeReceipt() { document.getElementById('receipt-modal').style.display = "none"; }
-
+    
     function renderLaporan() {
         const total = sales.reduce((a,b)=>a+b.total,0);
         document.getElementById('stat-trx').innerText = sales.length;
@@ -919,7 +968,7 @@
         if (!sales.length) { container.innerHTML = '<div class="cart-empty">📊 Belum ada transaksi</div>'; return; }
         container.innerHTML = sales.slice().reverse().map(s => `<div class="laporan-card" onclick='showStruk(${JSON.stringify(s)})'><div>🧾</div><div><div>${s.id}</div><div style="font-size:12px">${s.tgl}</div></div><div style="margin-left:auto; font-weight:800">${formatRp(s.total)}</div></div>`).join('');
     }
-
+    
     window.onload = () => { 
         startClock(); 
         updateOnlineStatus(); 
@@ -927,9 +976,7 @@
         renderProdukList();
         renderLaporan(); 
         updateCartUI();
-        // Inisialisasi audio context tanpa resume (menunggu user gesture)
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        // Jangan resume sekarang, nanti saat scan
     };
 </script>
 </body>
