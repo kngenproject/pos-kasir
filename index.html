@@ -104,7 +104,7 @@
         }
         #online-badge.online { background: #d1fae5; color: #065f46; }
         #online-badge.offline { background: #fee2e2; color: #991b1b; }
-        .refresh-btn, .hard-refresh-btn {
+        .refresh-btn {
             background: none;
             border: none;
             font-size: 20px;
@@ -486,9 +486,8 @@
         <div class="header-right">
             <span id="online-badge" class="online">● Online</span>
             <div class="header-time" id="header-clock">--:--</div>
-            <!-- Tombol Hard Refresh (bersihkan cache, ambil terbaru, data aman) -->
-            <button class="hard-refresh-btn" onclick="hardRefresh()" title="Hard Refresh - Ambil halaman terbaru tanpa hapus data">⚡</button>
-            <button class="refresh-btn" onclick="window.location.reload()" title="Refresh biasa">🔄</button>
+            <!-- Tombol Hard Refresh (menggunakan ikon refresh biasa) -->
+            <button class="hard-refresh-btn refresh-btn" onclick="hardRefresh()" title="Hard Refresh - Ambil halaman terbaru tanpa hapus data">🔄</button>
         </div>
     </header>
     <div id="install-banner" class="no-print"><p>📲 Install ProPOS di layar utama!</p><button class="btn-install" onclick="installPWA()">Install</button><button class="btn-dismiss" onclick="dismissInstall()">×</button></div>
