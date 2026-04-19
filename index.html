@@ -105,7 +105,7 @@
         #online-badge.online { background: #d1fae5; color: #065f46; }
         #online-badge.offline { background: #fee2e2; color: #991b1b; }
         .refresh-btn {
-            background: none;
+            background: var(--bg);
             border: none;
             font-size: 20px;
             cursor: pointer;
@@ -116,12 +116,9 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: var(--bg);
+            transition: 0.1s;
         }
-        .hard-refresh-btn {
-            background: var(--primary-light);
-            color: white;
-        }
+        .refresh-btn:active { transform: scale(0.94); background: var(--border); }
 
         #install-banner {
             background: linear-gradient(135deg, var(--primary), var(--primary-light));
@@ -477,7 +474,7 @@
 <body>
 <div id="update-toast" class="no-print">
     <p>🔄 Versi baru tersedia!</p>
-    <button onclick="reloadApp()" style="background:white;color:var(--primary);border:none;border-radius:8px;padding:6px 12px;">Perbarui</button>
+    <button onclick="hardRefresh()" style="background:white;color:var(--primary);border:none;border-radius:8px;padding:6px 12px;">Perbarui</button>
     <button onclick="document.getElementById('update-toast').style.display='none'" style="background:rgba(255,255,255,0.2);color:white;border:none;border-radius:8px;padding:6px 12px;">✕</button>
 </div>
 <div id="app">
@@ -486,8 +483,8 @@
         <div class="header-right">
             <span id="online-badge" class="online">● Online</span>
             <div class="header-time" id="header-clock">--:--</div>
-            <!-- Tombol Hard Refresh (menggunakan ikon refresh biasa) -->
-            <button class="hard-refresh-btn refresh-btn" onclick="hardRefresh()" title="Hard Refresh - Ambil halaman terbaru tanpa hapus data">🔄</button>
+            <!-- Tombol refresh dengan tampilan refresh biasa (hard refresh) -->
+            <button class="refresh-btn" onclick="hardRefresh()" title="Refresh (bersihkan cache & update)">🔄</button>
         </div>
     </header>
     <div id="install-banner" class="no-print"><p>📲 Install ProPOS di layar utama!</p><button class="btn-install" onclick="installPWA()">Install</button><button class="btn-dismiss" onclick="dismissInstall()">×</button></div>
@@ -607,14 +604,13 @@
     let scanMode = 'kasir';
     let produkListFilter = '';
     
-    // ==================== HARD REFRESH (TANPA HAPUS DATA) ====================
+    // ==================== HARD REFRESH (BERSIHKAN CACHE & UPDATE, TANPA HAPUS DATA) ====================
     async function hardRefresh() {
-        // Tampilkan konfirmasi
-        if (!confirm("⚡ Hard Refresh akan mengambil halaman terbaru dari server tanpa menghapus data produk/transaksi Anda. Lanjutkan?")) return;
+        if (!confirm("🔄 Refresh akan membersihkan cache & mengambil versi terbaru.\nData produk dan transaksi Anda tetap aman. Lanjutkan?")) return;
         
-        showMiniToast("🔄 Membersihkan cache & mengambil versi terbaru...");
+        showMiniToast("⚡ Membersihkan cache & memuat ulang...");
         
-        // 1. Hapus cache Service Worker (jika ada)
+        // 1. Hapus cache Service Worker
         if ('serviceWorker' in navigator) {
             const registrations = await navigator.serviceWorker.getRegistrations();
             for (let registration of registrations) {
@@ -623,7 +619,7 @@
             }
         }
         
-        // 2. Hapus cache dari Cache API (jika ada)
+        // 2. Hapus cache dari Cache API
         if ('caches' in window) {
             const cacheNames = await caches.keys();
             await Promise.all(cacheNames.map(name => caches.delete(name)));
@@ -684,22 +680,16 @@
                 reg.onupdatefound = () => {
                     const w = reg.installing;
                     w.onstatechange = () => {
-                        if (w.state === 'installed' && navigator.serviceWorker.controller) showUpdateToast();
+                        if (w.state === 'installed' && navigator.serviceWorker.controller) {
+                            // Tampilkan toast update, tombol akan memanggil hardRefresh
+                            const toast = document.getElementById('update-toast');
+                            toast.style.display = 'flex';
+                            setTimeout(() => { if (toast.style.display === 'flex') toast.style.display = 'none'; }, 30000);
+                        }
                     };
                 };
             }).catch(err => console.log('SW gagal:', err));
         });
-    }
-    
-    function showUpdateToast() {
-        const toast = document.getElementById('update-toast');
-        toast.style.display = 'flex';
-        setTimeout(() => { if (toast.style.display === 'flex') toast.style.display = 'none'; }, 30000);
-    }
-    
-    function reloadApp() {
-        if (swRegistration && swRegistration.waiting) swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
-        window.location.reload();
     }
     
     window.addEventListener('beforeinstallprompt', e => {
