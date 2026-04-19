@@ -104,7 +104,7 @@
         }
         #online-badge.online { background: #d1fae5; color: #065f46; }
         #online-badge.offline { background: #fee2e2; color: #991b1b; }
-        .refresh-btn {
+        .refresh-btn, .hard-refresh-btn {
             background: none;
             border: none;
             font-size: 20px;
@@ -117,6 +117,10 @@
             align-items: center;
             justify-content: center;
             background: var(--bg);
+        }
+        .hard-refresh-btn {
+            background: var(--primary-light);
+            color: white;
         }
 
         #install-banner {
@@ -230,7 +234,6 @@
             width: auto;
         }
 
-        /* PERUBAHAN UTAMA: scan-row dengan preview lebar dan tinggi tetap 70px */
         .scan-row {
             display: flex;
             align-items: center;
@@ -241,11 +244,11 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            flex-shrink: 0;   /* tombol tidak mengecil */
+            flex-shrink: 0;
         }
         .scanner-preview-small {
-            flex: 1;            /* mengambil sisa ruang → menjadi lebar */
-            height: 70px;       /* tinggi tetap 70px seperti minta */
+            flex: 1;
+            height: 70px;
             background: #000;
             border-radius: 12px;
             overflow: hidden;
@@ -424,7 +427,6 @@
         .input-with-btn { display: flex; gap: 8px; margin-bottom: 12px; }
         .input-with-btn input { margin-bottom: 0; flex: 1; }
         
-        /* Modal scanner untuk inventory (fullscreen) */
         .scanner-modal {
             position: fixed;
             top: 0;
@@ -485,12 +487,14 @@
         <div class="header-right">
             <span id="online-badge" class="online">● Online</span>
             <div class="header-time" id="header-clock">--:--</div>
-            <button class="refresh-btn" onclick="window.location.reload()" title="Refresh aplikasi">🔄</button>
+            <!-- Tombol Hard Refresh (bersihkan cache, ambil terbaru, data aman) -->
+            <button class="hard-refresh-btn" onclick="hardRefresh()" title="Hard Refresh - Ambil halaman terbaru tanpa hapus data">⚡</button>
+            <button class="refresh-btn" onclick="window.location.reload()" title="Refresh biasa">🔄</button>
         </div>
     </header>
     <div id="install-banner" class="no-print"><p>📲 Install ProPOS di layar utama!</p><button class="btn-install" onclick="installPWA()">Install</button><button class="btn-dismiss" onclick="dismissInstall()">×</button></div>
 
-    <!-- TAB KASIR dengan scan-row yang sudah diubah: preview di kiri, tombol di kanan -->
+    <!-- TAB KASIR -->
     <div id="tab-kasir" class="tab-content active">
         <div class="scan-row">
             <div id="kasir-scanner-preview" class="scanner-preview-small">
@@ -563,7 +567,7 @@
     <div class="nav-item" data-tab="tab-laporan"><div class="nav-icon">📊</div><span class="nav-label">Laporan</span></div>
 </nav>
 
-<!-- Modal scanner untuk inventory (fullscreen) -->
+<!-- Modal scanner untuk inventory -->
 <div id="scanner-modal" class="scanner-modal">
     <div class="scanner-container">
         <div id="scanner-video"></div>
@@ -605,7 +609,34 @@
     let scanMode = 'kasir';
     let produkListFilter = '';
     
-    // ==================== SUARA BEEP (VOLUME KERAS) ====================
+    // ==================== HARD REFRESH (TANPA HAPUS DATA) ====================
+    async function hardRefresh() {
+        // Tampilkan konfirmasi
+        if (!confirm("⚡ Hard Refresh akan mengambil halaman terbaru dari server tanpa menghapus data produk/transaksi Anda. Lanjutkan?")) return;
+        
+        showMiniToast("🔄 Membersihkan cache & mengambil versi terbaru...");
+        
+        // 1. Hapus cache Service Worker (jika ada)
+        if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            for (let registration of registrations) {
+                await registration.unregister();
+                console.log("Service Worker unregistered");
+            }
+        }
+        
+        // 2. Hapus cache dari Cache API (jika ada)
+        if ('caches' in window) {
+            const cacheNames = await caches.keys();
+            await Promise.all(cacheNames.map(name => caches.delete(name)));
+            console.log("Cache storage cleared");
+        }
+        
+        // 3. Hard reload (abaikan cache HTTP)
+        window.location.reload(true);
+    }
+    
+    // ==================== SUARA BEEP ====================
     let audioCtx = null;
     
     function initAudio() {
@@ -706,7 +737,7 @@
         item.addEventListener('click', () => { const tabId = item.getAttribute('data-tab'); showTab(tabId, item); });
     });
     
-    // ==================== SCANNER KASIR (Preview lebar, tinggi 70px) ====================
+    // ==================== SCANNER KASIR ====================
     async function startKasirScanner() {
         if (isKasirScanning) return;
         initAudio();
@@ -760,7 +791,7 @@
         document.getElementById('btn-stop-scan').style.display = 'none';
     }
     
-    // ==================== SCANNER INVENTORY (Fullscreen, tutup setelah scan) ====================
+    // ==================== SCANNER INVENTORY ====================
     async function startProductScanner() {
         if (isInventoryScanning) return;
         const modal = document.getElementById('scanner-modal');
