@@ -584,7 +584,7 @@
                     osc.connect(gain);
                     gain.connect(ctx.destination);
                     osc.frequency.value = 440;
-                    gain.gain.setValueAtTime(0.4, now);
+                    gain.gain.setValueAtTime(1.5, now);
                     gain.gain.exponentialRampToValueAtTime(0.00001, now + 0.1);
                     osc.start(now);
                     osc.stop(now + 0.1);
