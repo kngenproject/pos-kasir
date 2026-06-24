@@ -476,6 +476,133 @@
             opacity: 0;
             transition: opacity 0.2s;
         }
+      /* ========== TABLET LANDSCAPE 2-PANEL ========== */
+@media (min-width: 1024px) and (orientation: landscape) {
+    html, body { overflow: hidden; }
+
+    #app {
+        flex-direction: column;
+        height: 100dvh;
+    }
+
+    /* Sembunyikan nav bawah, ganti dengan sidebar tab */
+    .nav-bar {
+        position: fixed;
+        bottom: unset;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: auto;
+        padding: 0;
+        border-top: none;
+        border-bottom: 1px solid var(--border);
+        flex-direction: row;
+        z-index: 100;
+        background: rgba(255,255,255,0.97);
+    }
+
+    .nav-item {
+        flex-direction: row;
+        gap: 8px;
+        padding: 10px 20px;
+        border-radius: 0;
+    }
+
+    .nav-icon {
+        width: 32px; height: 32px;
+        font-size: 16px;
+        border-radius: 8px;
+    }
+
+    .nav-item.active .nav-icon {
+        transform: none;
+    }
+
+    .nav-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-2);
+    }
+
+    .nav-item.active .nav-label {
+        color: var(--primary);
+    }
+
+    /* Area konten di bawah header + topnav */
+    .tab-content {
+        padding: 0;
+        overflow: hidden;
+    }
+
+    /* ===== KASIR: 2 panel ===== */
+    #tab-kasir {
+        display: none;
+        flex-direction: row;
+        height: calc(100dvh - var(--header-h, 56px) - 52px);
+        gap: 0;
+        padding: 0;
+        overflow: hidden;
+    }
+
+    #tab-kasir.active {
+        display: flex;
+    }
+
+    /* Panel Kiri: Scan + Cart + Bayar */
+    .kasir-left-panel {
+        width: 380px;
+        min-width: 320px;
+        max-width: 420px;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        border-right: 1px solid var(--border);
+        background: var(--surface);
+        overflow: hidden;
+        padding: 14px;
+        gap: 10px;
+    }
+
+    /* Panel Kanan: Produk Grid */
+    .kasir-right-panel {
+        flex: 1;
+        overflow-y: auto;
+        padding: 14px;
+        background: var(--bg);
+    }
+
+    .kasir-right-panel .product-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    /* Cart scrollable di dalam panel kiri */
+    #cart-items {
+        max-height: unset;
+        flex: 1;
+        overflow-y: auto;
+    }
+
+    /* Scan row kompak di panel kiri */
+    .scan-row {
+        margin-bottom: 0;
+        gap: 8px;
+    }
+
+    .scanner-preview-small {
+        height: 90px;
+        max-width: 100%;
+    }
+
+    /* Tab lain tetap normal tapi pakai padding top untuk topnav */
+    #tab-produk-list,
+    #tab-inventory,
+    #tab-laporan {
+        padding: 14px;
+        padding-bottom: 20px;
+        overflow-y: auto;
+        height: calc(100dvh - var(--header-h, 56px) - 52px);
+    }
+      }
     </style>
 </head>
 <body>
@@ -495,30 +622,42 @@
     </header>
     <div id="install-banner" class="no-print"><p>📲 Install ProPOS di layar utama!</p><button class="btn-install" onclick="installPWA()">Install</button><button class="btn-dismiss" onclick="dismissInstall()">×</button></div>
 
-    <!-- TAB KASIR (tombol scan sudah di tengah) -->
+    <!-- TAB KASIR - 2 Panel Tablet -->
     <div id="tab-kasir" class="tab-content active">
-        <div class="scan-row">
-            <div id="kasir-scanner-preview" class="scanner-preview-small">
-                <div id="kasir-scanner-video-small"></div>
+    
+        <!-- PANEL KIRI: Scan + Cart + Bayar -->
+        <div class="kasir-left-panel">
+            <div class="scan-row">
+                <div id="kasir-scanner-preview" class="scanner-preview-small">
+                    <div id="kasir-scanner-video-small"></div>
+                </div>
+                <div class="scan-controls-small">
+                    <button class="btn btn-scan" id="btn-start-scan" onclick="startKasirScanner()">📷 Scan Barcode</button>
+                    <button class="btn btn-outline btn-stop-scan-small" id="btn-stop-scan" onclick="stopKasirScanner()" style="display:none;">⏹ Berhenti</button>
+                </div>
             </div>
-            <div class="scan-controls-small">
-                <button class="btn btn-scan" id="btn-start-scan" onclick="startKasirScanner()">📷 Scan Barcode</button>
-                <button class="btn btn-outline btn-stop-scan-small" id="btn-stop-scan" onclick="stopKasirScanner()" style="display:none;">⏹ Berhenti</button>
+    
+            <div class="card" style="flex:1; display:flex; flex-direction:column; overflow:hidden; margin-bottom:0;">
+                <div class="card-title">🛒 Keranjang</div>
+                <div id="cart-items" style="flex:1; overflow-y:auto;"><div class="cart-empty">🛒 Kosong</div></div>
+                <div class="total-section">
+                    <div class="total-row"><span>Subtotal</span><span id="subtotal">Rp 0</span></div>
+                    <div class="total-row grand-total-row"><span>Total</span><span class="grand-total-amount" id="total-cart">Rp 0</span></div>
+                </div>
+                <label>💵 Nominal Bayar</label>
+                <input type="number" id="input-bayar" placeholder="Masukkan uang..." oninput="hitungKembalian()">
+                <div class="total-row"><span>Kembalian</span><b id="total-kembali">Rp 0</b></div>
+                <button class="btn btn-success" onclick="prosesTransaksi()">✅ Selesai</button>
+                <button class="btn btn-danger" onclick="resetKasir()" style="margin-top:8px">🗑 Kosongkan</button>
             </div>
         </div>
-        <div class="card">
-            <div class="card-title">🛒 Keranjang</div>
-            <div id="cart-items"><div class="cart-empty">🛒 Kosong</div></div>
-            <div class="total-section">
-                <div class="total-row"><span>Subtotal</span><span id="subtotal">Rp 0</span></div>
-                <div class="total-row grand-total-row"><span>Total</span><span class="grand-total-amount" id="total-cart">Rp 0</span></div>
-            </div>
-            <label>💵 Nominal Bayar</label>
-            <input type="number" id="input-bayar" placeholder="Masukkan uang..." oninput="hitungKembalian()">
-            <div class="total-row"><span>Kembalian</span><b id="total-kembali">Rp 0</b></div>
-            <button class="btn btn-success" onclick="prosesTransaksi()">✅ Selesai</button>
-            <button class="btn btn-danger" onclick="resetKasir()" style="margin-top:8px">🗑 Kosongkan</button>
+    
+        <!-- PANEL KANAN: Produk Grid -->
+        <div class="kasir-right-panel">
+            <input type="text" id="search-produk-kasir" class="search-bar" placeholder="🔍 Cari produk..." oninput="filterProdukKasir()">
+            <div id="produk-kasir-grid" class="product-grid"></div>
         </div>
+    
     </div>
 
     <!-- TAB DAFTAR PRODUK -->
@@ -1022,15 +1161,52 @@
         container.innerHTML = sales.slice().reverse().map(s => `<div class="laporan-card" onclick='showStruk(${JSON.stringify(s)})'><div>🧾</div><div><div>${s.id}</div><div style="font-size:12px">${s.tgl}</div></div><div style="margin-left:auto; font-weight:800">${formatRp(s.total)}</div></div>`).join('');
     }
     
-    window.onload = () => { 
-        startClock(); 
-        updateOnlineStatus(); 
-        renderInventoryList(); 
+    window.onload = () => {
+        startClock();
+        updateOnlineStatus();
+        renderInventoryList();
         renderProdukList();
-        renderLaporan(); 
+        renderProdukKasirGrid(); // ← tambah ini
+        renderLaporan();
         updateCartUI();
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    };
+    };    
+  // ===== PRODUK GRID DI PANEL KASIR (tablet) =====
+    let produkKasirFilter = '';
+    
+    function renderProdukKasirGrid() {
+        const container = document.getElementById('produk-kasir-grid');
+        if (!container) return;
+        let filtered = products;
+        if (produkKasirFilter) {
+            const f = produkKasirFilter.toLowerCase();
+            filtered = products.filter(p =>
+                p.nama.toLowerCase().includes(f) ||
+                p.barcode.toLowerCase().includes(f)
+            );
+        }
+        if (!filtered.length) {
+            container.innerHTML = '<div class="cart-empty">📦 Tidak ada produk</div>';
+            return;
+        }
+        container.innerHTML = filtered.map(p => `
+            <div class="product-card">
+                <h4>${escapeHtml(p.nama)}</h4>
+                <div class="product-price">${formatRp(p.harga)}</div>
+                <div class="product-stock ${p.stok <= 5 ? 'low' : ''}">Stok: ${p.stok}</div>
+                <button class="btn-add-cart ${p.stok <= 0 ? 'disabled' : ''}"
+                    onclick="addToCart('${escapeHtml(p.barcode)}')"
+                    ${p.stok <= 0 ? 'disabled' : ''}>
+                    ➕ Tambah
+                </button>
+            </div>
+        `).join('');
+    }
+    
+    function filterProdukKasir() {
+        produkKasirFilter = document.getElementById('search-produk-kasir')?.value || '';
+        renderProdukKasirGrid();
+    }
 </script>
 </body>
 </html>
